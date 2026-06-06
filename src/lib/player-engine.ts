@@ -26,6 +26,10 @@ class PlayerEngine {
     if (this.audio) return this.audio;
     const a = new Audio();
     a.preload = "metadata";
+    // 크로스오리진(Firebase Storage) 음원을 Web Audio 그래프(비주얼라이저)에
+    // 연결하려면 CORS 가 필요 — 미설정 시 MediaElementSource 출력이 무음 처리된다.
+    // 버킷 CORS(GET/HEAD, *) + 이 속성이 함께 있어야 소리가 난다.
+    a.crossOrigin = "anonymous";
     a.addEventListener("timeupdate", () => this.listeners.onTime?.(a.currentTime));
     a.addEventListener("loadedmetadata", () => {
       this.listeners.onDuration?.(a.duration || 0);
