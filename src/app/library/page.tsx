@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTracks } from "@/contexts/TracksContext";
 import { usePlayerStore } from "@/stores/usePlayerStore";
 import { formatBytes, formatDurationKo, formatTime } from "@/lib/format";
@@ -10,6 +11,7 @@ import StatCard from "@/components/ui/StatCard";
 import SectionCard from "@/components/ui/SectionCard";
 import EmptyState from "@/components/ui/EmptyState";
 import TrackRow from "@/components/music/TrackRow";
+import UploadTracksModal from "@/components/app/UploadTracksModal";
 import { fieldInputClass } from "@/components/ui/Form";
 import {
   Music2,
@@ -17,6 +19,7 @@ import {
   HardDrive,
   Timer,
   Play,
+  Plus,
   Shuffle,
   Search,
   ListMusic,
@@ -41,6 +44,18 @@ export default function LibraryPage() {
   const playAll = usePlayerStore((s) => s.playAll);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("title");
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // ⌘K "곡 등록" 등 딥링크 — /library?add=1 이면 등록 모달 자동 오픈.
+  // searchParams 구독이라 이미 /library 에 있을 때 push 돼도 반응한다 (마운트 1회 아님).
+  useEffect(() => {
+    if (searchParams.get("add") === "1") {
+      setUploadOpen(true);
+      router.replace("/library", { scroll: false });
+    }
+  }, [searchParams, router]);
 
   const totalSec = useMemo(() => tracks.reduce((s, t) => s + t.duration, 0), [tracks]);
   const totalBytes = useMemo(() => tracks.reduce((s, t) => s + t.sizeBytes, 0), [tracks]);
@@ -79,8 +94,8 @@ export default function LibraryPage() {
       <PageHeader
         title="보관함"
         description={`전체 ${tracks.length}곡 · ${formatDurationKo(totalSec)} · WAV 무손실`}
-        action={{ label: "전체 재생", icon: Play, onClick: () => playAll({ shuffle: false }) }}
-        secondaryAction={{ label: "셔플", icon: Shuffle, onClick: () => playAll({ shuffle: true }) }}
+        action={{ label: "곡 등록", icon: Plus, onClick: () => setUploadOpen(true) }}
+        secondaryAction={{ label: "전체 재생", icon: Play, onClick: () => playAll({ shuffle: false }) }}
       />
 
       {/* 통계 */}
@@ -149,7 +164,8 @@ export default function LibraryPage() {
           <EmptyState
             icon={ListMusic}
             title="보관함이 비어 있습니다"
-            description=".Music 폴더에 WAV 파일을 넣으면 자동으로 보관함에 나타납니다."
+            description="곡을 등록하거나 .Music 폴더에 파일을 넣으면 보관함에 나타납니다."
+            action={{ label: "곡 등록", onClick: () => setUploadOpen(true) }}
           />
         )
       ) : (
@@ -157,6 +173,14 @@ export default function LibraryPage() {
           title="트랙"
           icon={ListMusic}
           description={`${visible.length}곡 · ${SORT_LABEL[sortKey]}`}
+          action={
+            <button
+              onClick={() => playAll({ shuffle: true, ids: visibleIds })}
+              className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-bora-600 transition-colors hover:bg-bora-50 hover:text-bora-700"
+            >
+              <Shuffle className="h-3.5 w-3.5" /> 셔플
+            </button>
+          }
           bodyClassName="p-0"
         >
           <ul className="divide-y divide-surface-2">
@@ -172,6 +196,8 @@ export default function LibraryPage() {
           </ul>
         </SectionCard>
       )}
+
+      <UploadTracksModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
     </div>
   );
 }

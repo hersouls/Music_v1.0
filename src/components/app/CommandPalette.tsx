@@ -20,6 +20,7 @@ import {
   Search,
   Music2,
   Play,
+  Plus,
   Shuffle,
   ArrowRight,
   CornerDownLeft,
@@ -94,6 +95,14 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       subtitle: "보관함을 무작위로 재생",
       haystack: hay("셔플 재생", "셔플", "shuffle", "랜덤"),
       run: () => playAll({ shuffle: true }),
+    });
+    out.push({
+      key: "action-add-tracks",
+      kind: "action",
+      title: "곡 등록",
+      subtitle: "오디오 파일을 보관함에 추가",
+      haystack: hay("곡 등록", "업로드", "추가", "upload", "add"),
+      run: () => router.push("/library?add=1"),
     });
 
     for (const t of tracks) {
@@ -186,7 +195,11 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
                           </p>
                           {group.items.map((r) => {
                             const ItemIcon =
-                              r.key === "action-shuffle" ? Shuffle : Icon;
+                              r.key === "action-shuffle"
+                                ? Shuffle
+                                : r.key === "action-add-tracks"
+                                  ? Plus
+                                  : Icon;
                             return (
                               <ComboboxOption key={r.key} value={r} as={Fragment}>
                                 {({ active }) => (
