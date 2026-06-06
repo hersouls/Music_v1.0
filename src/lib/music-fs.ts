@@ -51,3 +51,33 @@ export function isInside(base: string, target: string): boolean {
     .resolve(target)
     .startsWith(path.resolve(base) + path.sep);
 }
+
+/** 가사 사이드카 확장자 — 오디오와 같은 stem 으로 곡을 따라다닌다 */
+export const LYRICS_EXTS = [".lrc", ".txt"] as const;
+
+/**
+ * 오디오 파일이 이동/이름변경될 때 같은 stem 의 가사 사이드카(.lrc/.txt)도
+ * 함께 옮긴다. 대상 폴더에 같은 이름이 있으면 오디오의 최종 파일명(finalAudioName)
+ * 의 stem 에 맞춰 따라간다. best-effort — 사이드카가 없으면 조용히 통과.
+ */
+export async function moveLyricsSidecars(
+  srcDir: string,
+  srcStem: string,
+  destDir: string,
+  destStem: string
+): Promise<void> {
+  // 호출부가 destDir 을 .Music 안으로 이미 검증함 (사이드카는 best-effort)
+  for (const ext of LYRICS_EXTS) {
+    const from = path.join(srcDir, `${srcStem}${ext}`);
+    try {
+      await fs.access(from);
+    } catch {
+      continue; // 해당 사이드카 없음
+    }
+    try {
+      await fs.rename(from, path.join(destDir, `${destStem}${ext}`));
+    } catch {
+      // 대상이 이미 있거나 잠금 — 무시
+    }
+  }
+}

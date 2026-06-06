@@ -1,7 +1,12 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { MUSIC_DIR, AUDIO_EXTS, trackId } from "@/lib/tracks.server";
-import { sanitizeAlbumName, uniqueFileName, isInside } from "@/lib/music-fs";
+import {
+  sanitizeAlbumName,
+  uniqueFileName,
+  isInside,
+  moveLyricsSidecars,
+} from "@/lib/music-fs";
 
 /* ───────────────────────────────────────────
    앨범 관리 — 폴더 = 앨범
@@ -131,6 +136,14 @@ export async function DELETE(req: Request) {
     if (!st?.isFile()) continue;
     const finalName = await uniqueFileName(MUSIC_DIR, f);
     await fs.rename(src, path.join(MUSIC_DIR, finalName));
+    // 가사 사이드카도 함께 싱글(루트)로 이동
+    const ext = path.extname(f);
+    await moveLyricsSidecars(
+      dir,
+      path.basename(f, ext),
+      MUSIC_DIR,
+      path.basename(finalName, path.extname(finalName))
+    );
     moved.push({
       oldId: trackId(`${name}/${f}`),
       newId: trackId(finalName),

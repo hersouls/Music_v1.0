@@ -37,7 +37,7 @@ pnpm typecheck  # tsc --noEmit
 - `src/lib/lrc.ts` — LRC 파서(다중 타임태그·메타태그 스킵, 타임라인 2줄 미만이면 일반 텍스트) + 직렬화(`formatLrcTime`/`buildLrc`/`splitLyricLines`)
 - `src/components/music/` — TrackArtwork(파일명 해시 결정적 SVG 아트, 3 variant), TrackRow, EqBars
 - `src/components/app/` — AppShell(Health 셸 패리티 — 사이드바·모바일 드로어·⌘K), CommandPalette(트랙 검색→재생, 곡 등록 액션), UploadTracksModal(드래그&드롭 다중 업로드 + **앨범 선택/새 앨범 생성** → 완료 시 `router.refresh()` 재스캔; `/library?add=1` 딥링크로 자동 오픈), AlbumNameModal(앨범 생성/이름변경 공용), MoveTrackModal(곡을 앨범↔싱글 이동)
-- `src/lib/music-fs.ts` — .Music 파일시스템 공용 헬퍼(이름 정제·중복 회피·경로 격리) — 업로드/앨범/이동 라우트 공유
+- `src/lib/music-fs.ts` — .Music 파일시스템 공용 헬퍼(이름 정제·중복 회피·경로 격리 + `moveLyricsSidecars`: 곡 이동·앨범 삭제 시 가사 `.lrc/.txt` 사이드카를 같은 stem 으로 동반 이동) — 업로드/앨범/이동 라우트 공유. 앨범 이름변경은 폴더째 rename 이라 사이드카 자동 동반
 - `src/components/ui/`, `src/components/charts/`, `src/styles/` — **Health v1.0 에서 verbatim 복사** (수정 금지에 준함 — 디자인 변경은 Health 와 동기화)
 - `src/contexts/TracksContext.tsx` — 서버 스캔 트랙을 동기 제공(깜빡임 없음) + 스토어 시드
 

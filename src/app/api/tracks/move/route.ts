@@ -1,7 +1,12 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { MUSIC_DIR, getTracks, trackId } from "@/lib/tracks.server";
-import { sanitizeAlbumName, uniqueFileName, isInside } from "@/lib/music-fs";
+import {
+  sanitizeAlbumName,
+  uniqueFileName,
+  isInside,
+  moveLyricsSidecars,
+} from "@/lib/music-fs";
 
 /* ───────────────────────────────────────────
    곡 이동 — POST { id, album } ("" = 싱글/루트)
@@ -58,6 +63,16 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+
+  // 가사 사이드카(.lrc/.txt)도 곡을 따라 이동
+  const srcDir = path.join(MUSIC_DIR, path.dirname(track.relPath));
+  const ext = path.extname(track.fileName);
+  await moveLyricsSidecars(
+    srcDir,
+    path.basename(track.fileName, ext),
+    destDir,
+    path.basename(finalName, path.extname(finalName))
+  );
 
   const newRelPath = album ? `${album}/${finalName}` : finalName;
   return Response.json({
