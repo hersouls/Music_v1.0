@@ -14,7 +14,13 @@ import {
   GoogleAuthProvider,
   type User,
 } from "firebase/auth";
-import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+  getDb,
+  getFirebaseAuth,
+  isFirebaseConfigured,
+  setupConnectionRecovery,
+} from "@/lib/firebase";
 
 /* ───────────────────────────────────────────
    AuthContext — Google 로그인 (모든 인증 사용자 허용)
@@ -45,9 +51,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+    setupConnectionRecovery();
     const unsubscribe = onAuthStateChanged(getFirebaseAuth(), (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
+      // 프로필 문서 갱신 (둘러보기 표기·향후 기능용) — 실패해도 앱 동작 무관
+      if (firebaseUser) {
+        setDoc(
+          doc(getDb(), "users", firebaseUser.uid),
+          {
+            displayName: firebaseUser.displayName ?? "",
+            photoURL: firebaseUser.photoURL ?? "",
+            email: firebaseUser.email ?? "",
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        ).catch(() => {});
+      }
     });
     return unsubscribe;
   }, [firebaseReady]);

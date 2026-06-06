@@ -1,21 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useAlbums } from "@/contexts/TracksContext";
 import { useToastStore } from "@/stores/useToastStore";
-import { usePlayerStore } from "@/stores/usePlayerStore";
+import { useDialogStore } from "@/stores/useDialogStore";
+import { moveTrack as moveTrackDoc, deleteTrack } from "@/lib/firestore-tracks";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/Modal";
 import { Field, fieldInputClass } from "@/components/ui/Form";
 import TrackArtwork from "@/components/music/TrackArtwork";
 import type { Track } from "@/types/music";
-import { FolderInput, Loader2 } from "lucide-react";
+import { FolderInput, Loader2, Trash2 } from "lucide-react";
 
 /* ───────────────────────────────────────────
-   곡 이동 모달 — 트랙을 다른 앨범(폴더)/싱글로 이동
-   서버의 id 리맵 쌍으로 즐겨찾기·재생수·큐를 이관해
-   이동해도 청취 데이터가 끊기지 않는다.
+   곡 이동 모달 — 트랙을 다른 앨범/싱글로 이동 (album 필드 갱신)
+   문서 id 가 불변이라 즐겨찾기·재생수·재생 중 곡이 그대로 유지된다.
+   + 곡 삭제 (Firestore 문서 + Storage 원본·스트림)
    ─────────────────────────────────────────── */
 
 const NEW_ALBUM = "__new__";
@@ -27,10 +27,9 @@ export default function MoveTrackModal({
   track: Track | null;
   onClose: () => void;
 }) {
-  const router = useRouter();
   const albums = useAlbums();
   const addToast = useToastStore((s) => s.addToast);
-  const remapTrackIds = usePlayerStore((s) => s.remapTrackIds);
+  const openDialog = useDialogStore((s) => s.openDialog);
   const [choice, setChoice] = useState("");
   const [newAlbum, setNewAlbum] = useState("");
   const [busy, setBusy] = useState(false);
@@ -57,25 +56,13 @@ export default function MoveTrackModal({
       return;
     setBusy(true);
     try {
-      const res = await fetch("/api/tracks/move", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: track.id, album: target }),
-      });
-      const data = (await res.json()) as {
-        error?: string;
-        album?: string;
-        moved?: { oldId: string; newId: string }[];
-      };
-      if (!res.ok) throw new Error(data.error || "이동에 실패했습니다");
-      if (data.moved?.length) remapTrackIds(data.moved);
+      await moveTrackDoc(track.id, target);
       addToast({
         type: "success",
-        message: data.album
-          ? `「${track.title}」을(를) 앨범 「${data.album}」(으)로 이동했습니다`
+        message: target
+          ? `「${track.title}」을(를) 앨범 「${target}」(으)로 이동했습니다`
           : `「${track.title}」을(를) 싱글로 이동했습니다`,
       });
-      router.refresh();
       onClose();
     } catch (e) {
       addToast({
@@ -87,34 +74,64 @@ export default function MoveTrackModal({
     }
   }
 
+  function confirmDelete() {
+    if (!track || busy) return;
+    const t = track;
+    openDialog({
+      title: "곡 삭제",
+      description: `「${t.title}」을(를) 완전히 삭제합니다. 클라우드의 원본 파일도 함께 지워지며 되돌릴 수 없어요.`,
+      confirmLabel: "삭제",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteTrack(t);
+          addToast({ type: "success", message: `「${t.title}」을(를) 삭제했습니다` });
+          onClose();
+        } catch {
+          addToast({ type: "error", message: "삭제에 실패했습니다" });
+          throw new Error("delete-failed"); // 다이얼로그 유지
+        }
+      },
+    });
+  }
+
   return (
     <Modal
       open={!!track}
       onClose={handleClose}
-      title="앨범으로 이동"
+      title="곡 관리"
       footer={
-        <div className="flex justify-end gap-2">
+        <div className="flex items-center justify-between gap-2">
           <button
-            onClick={handleClose}
+            onClick={confirmDelete}
             disabled={busy}
-            className="rounded-xl border border-strong bg-surface-primary px-4 py-2.5 text-sm font-medium text-body transition-colors hover:bg-surface-secondary disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
           >
-            취소
+            <Trash2 className="h-4 w-4" /> 곡 삭제
           </button>
-          <button
-            onClick={submit}
-            disabled={
-              busy || isNoop || (choice === NEW_ALBUM && !newAlbum.trim())
-            }
-            className="flex items-center gap-2 rounded-xl bg-bora-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-bora-700 disabled:opacity-50"
-          >
-            {busy ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <FolderInput className="h-4 w-4" />
-            )}
-            이동
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleClose}
+              disabled={busy}
+              className="rounded-xl border border-strong bg-surface-primary px-4 py-2.5 text-sm font-medium text-body transition-colors hover:bg-surface-secondary disabled:opacity-50"
+            >
+              취소
+            </button>
+            <button
+              onClick={submit}
+              disabled={
+                busy || isNoop || (choice === NEW_ALBUM && !newAlbum.trim())
+              }
+              className="flex items-center gap-2 rounded-xl bg-bora-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-bora-700 disabled:opacity-50"
+            >
+              {busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FolderInput className="h-4 w-4" />
+              )}
+              이동
+            </button>
+          </div>
         </div>
       }
     >
@@ -171,7 +188,7 @@ export default function MoveTrackModal({
           </Field>
 
           <p className="text-xs text-caption">
-            파일이 해당 폴더로 옮겨지며, 즐겨찾기·재생 기록은 그대로 유지돼요.
+            앨범 필드만 바뀌므로 즐겨찾기·재생 기록·재생 중인 곡 모두 그대로예요.
           </p>
         </div>
       )}

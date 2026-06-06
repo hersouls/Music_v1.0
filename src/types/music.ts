@@ -1,36 +1,54 @@
 /* ═══════════════════════════════════════════
-   Moonwave Music v1.0 — Domain Types (단일 진실 공급원)
+   Moonwave Music — Domain Types (단일 진실 공급원)
+   v2: Firestore `tracks/{id}` 문서 + Storage 음원
    ═══════════════════════════════════════════ */
 
-/** .Music 폴더에서 스캔한 오디오 트랙 (서버에서 WAV 헤더 파싱) */
+export type Visibility = "public" | "private";
+
+/** Firestore `tracks` 문서 + 계산 필드(id·src) — UI 가 쓰는 필드명은 v1 과 동일 유지 */
 export interface Track {
-  /** 상대경로 해시 기반 안정 ID (스트리밍 URL 키) — 루트 파일은 기존 파일명 해시와 동일 */
+  /** Firestore 문서 id — 이동·이름변경에도 불변 (청취 데이터 키) */
   id: string;
+  /** 업로더 uid (소유자만 수정/삭제 가능) */
+  ownerUid: string;
+  /** 업로더 표시명 (둘러보기 표기·artist 기본값) */
+  ownerName: string;
   /** 파일명에서 확장자를 뗀 곡 제목 */
   title: string;
   artist: string;
-  /** 파일명 (경로 제외) */
+  /** 원본 파일명 (검색·표시용) */
   fileName: string;
-  /** .Music 기준 상대경로 (앨범 폴더 포함) — 스트리밍 해석용 */
-  relPath: string;
-  /** 앨범명 = 상위 폴더명 (루트 파일은 "" → UI에서 "싱글" 그룹) */
+  /** 앨범명 — "" = 싱글 (문자열 그룹, 폴더 개념 없음) */
   album: string;
-  /** 스트리밍 URL (/api/stream/[id]) */
+  visibility: Visibility;
+  /** 재생 URL — 변환 mp3(streamUrl) 우선, 없으면 원본 */
   src: string;
-  /** 재생 길이(초) — WAV 헤더 기반, 알 수 없으면 0 */
+  /** 원본 다운로드 URL (Storage) */
+  originalUrl: string;
+  /** 스트리밍용 mp3 URL (변환 성공 시) */
+  streamUrl: string | null;
+  /** Storage 경로: tracks/{ownerUid}/{trackId}/original.<ext> */
+  storagePath: string;
+  /** Storage 경로: tracks/{ownerUid}/{trackId}/stream.mp3 (있으면) */
+  streamPath: string | null;
+  /** 재생 길이(초) — 업로드 시 클라이언트가 측정, 알 수 없으면 0 */
   duration: number;
   sizeBytes: number;
   /** WAV 포맷 정보 (비 WAV 파일은 0) */
   sampleRate: number;
   channels: number;
   bitsPerSample: number;
-  /** Suno 생성곡 clip id — WAV LIST INFO ICMT 의 "id=<uuid>" (가사 가져오기용, 없으면 "") */
-  sunoId: string;
+  /** 가사 (LRC/일반 텍스트) — 문서 필드로 보관 */
+  lyrics: string | null;
+  lyricsFormat: "lrc" | "txt" | null;
+  /** epoch ms (serverTimestamp → millis) */
+  createdAt: number;
+  updatedAt: number;
 }
 
 export type RepeatMode = "off" | "all" | "one";
 
-/** 재생 이력 1건 (localStorage 영속) */
+/** 재생 이력 1건 (Firestore users/{uid}/data/listening 동기화) */
 export interface PlayEvent {
   id: string;
   /** ISO datetime */

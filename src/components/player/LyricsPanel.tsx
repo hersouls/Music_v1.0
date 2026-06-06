@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePlayerStore } from "@/stores/usePlayerStore";
 import { useToastStore } from "@/stores/useToastStore";
-import { parseLyrics, activeLineIndex, type ParsedLyrics } from "@/lib/lrc";
+import { useAuth } from "@/contexts/AuthContext";
+import { saveLyrics, deleteLyrics } from "@/lib/firestore-tracks";
+import { parseLyrics, activeLineIndex } from "@/lib/lrc";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/Modal";
 import LyricsSyncEditor from "@/components/player/LyricsSyncEditor";
@@ -19,20 +21,17 @@ import {
 
 /* ───────────────────────────────────────────
    LyricsPanel — NowPlaying 가사 뷰
-   .lrc 싱크 가사: 재생 위치 하이라이트 + 자동 스크롤 +
-   줄 클릭 시킹. .txt 는 정적 표시.
-   등록: 붙여넣기(LRC 자동 감지) / 탭-싱크 에디터(곡 들으며 타이밍).
+   가사는 트랙 문서 필드(lyrics) — Firestore 구독으로 실시간 반영.
+   LRC 싱크 가사: 재생 위치 하이라이트 + 자동 스크롤 + 줄 클릭 시킹.
+   편집·싱크 만들기는 소유자만 (공개 곡 감상자는 보기 전용).
    ─────────────────────────────────────────── */
-
-type Status = "loading" | "none" | "loaded";
 
 export default function LyricsPanel({ track }: { track: Track }) {
   const currentTime = usePlayerStore((s) => s.currentTime);
   const seek = usePlayerStore((s) => s.seek);
+  const { uid } = useAuth();
+  const isOwner = uid === track.ownerUid;
 
-  const [status, setStatus] = useState<Status>("loading");
-  const [raw, setRaw] = useState("");
-  const [parsed, setParsed] = useState<ParsedLyrics | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
 
@@ -40,28 +39,8 @@ export default function LyricsPanel({ track }: { track: Track }) {
   const lineRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const userScrollUntil = useRef(0);
 
-  const load = useCallback(async () => {
-    setStatus("loading");
-    try {
-      const res = await fetch(`/api/lyrics/${track.id}`);
-      const data = (await res.json()) as { content: string | null };
-      if (!res.ok || !data.content) {
-        setStatus("none");
-        setParsed(null);
-        setRaw("");
-        return;
-      }
-      setRaw(data.content);
-      setParsed(parseLyrics(data.content));
-      setStatus("loaded");
-    } catch {
-      setStatus("none");
-    }
-  }, [track.id]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const raw = track.lyrics ?? "";
+  const parsed = useMemo(() => (raw ? parseLyrics(raw) : null), [raw]);
 
   const activeIdx = useMemo(
     () => (parsed?.synced ? activeLineIndex(parsed.lines, currentTime) : -1),
@@ -95,13 +74,7 @@ export default function LyricsPanel({ track }: { track: Track }) {
         </span>
       </p>
 
-      {status === "loading" && (
-        <div className="flex flex-1 items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-white/60" />
-        </div>
-      )}
-
-      {status === "none" && (
+      {!parsed && (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20">
             <MicVocal className="h-7 w-7 text-white/70" />
@@ -109,29 +82,33 @@ export default function LyricsPanel({ track }: { track: Track }) {
           <div>
             <p className="text-sm font-semibold text-white/90">아직 가사가 없습니다</p>
             <p className="mt-1 text-xs text-white/60">
-              가사를 붙여넣고 곡을 들으며 타이밍을 찍으면 싱크 가사가 돼요
+              {isOwner
+                ? "가사를 붙여넣고 곡을 들으며 타이밍을 찍으면 싱크 가사가 돼요"
+                : "곡 주인이 가사를 등록하면 이곳에 표시돼요"}
             </p>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <button
-              onClick={() => setSyncOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-bora-700 shadow-lg shadow-black/10 transition-all hover:scale-[1.04] active:scale-95"
-            >
-              <AudioLines className="h-3.5 w-3.5" />
-              가사 싱크 만들기
-            </button>
-            <button
-              onClick={() => setEditOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-4 py-2 text-xs font-bold text-white ring-1 ring-white/25 backdrop-blur-sm transition-colors hover:bg-white/25"
-            >
-              <ClipboardPaste className="h-3.5 w-3.5" />
-              그냥 붙여넣기
-            </button>
-          </div>
+          {isOwner && (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                onClick={() => setSyncOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-bora-700 shadow-lg shadow-black/10 transition-all hover:scale-[1.04] active:scale-95"
+              >
+                <AudioLines className="h-3.5 w-3.5" />
+                가사 싱크 만들기
+              </button>
+              <button
+                onClick={() => setEditOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-4 py-2 text-xs font-bold text-white ring-1 ring-white/25 backdrop-blur-sm transition-colors hover:bg-white/25"
+              >
+                <ClipboardPaste className="h-3.5 w-3.5" />
+                그냥 붙여넣기
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {status === "loaded" && parsed && (
+      {parsed && (
         <>
           <div
             ref={containerRef}
@@ -171,45 +148,45 @@ export default function LyricsPanel({ track }: { track: Track }) {
             )}
           </div>
 
-          {/* 가사 도구 */}
-          <div className="flex shrink-0 items-center justify-center gap-2 pt-2">
-            <button
-              onClick={() => setSyncOpen(true)}
-              className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white/75 ring-1 ring-white/15 transition-colors hover:bg-white/20 hover:text-white"
-            >
-              <AudioLines className="h-3 w-3" />
-              {parsed.synced ? "타이밍 다시" : "싱크 만들기"}
-            </button>
-            <button
-              onClick={() => setEditOpen(true)}
-              className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white/75 ring-1 ring-white/15 transition-colors hover:bg-white/20 hover:text-white"
-            >
-              <Pencil className="h-3 w-3" /> 편집
-            </button>
-          </div>
+          {/* 가사 도구 — 소유자만 */}
+          {isOwner && (
+            <div className="flex shrink-0 items-center justify-center gap-2 pt-2">
+              <button
+                onClick={() => setSyncOpen(true)}
+                className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white/75 ring-1 ring-white/15 transition-colors hover:bg-white/20 hover:text-white"
+              >
+                <AudioLines className="h-3 w-3" />
+                {parsed.synced ? "타이밍 다시" : "싱크 만들기"}
+              </button>
+              <button
+                onClick={() => setEditOpen(true)}
+                className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white/75 ring-1 ring-white/15 transition-colors hover:bg-white/20 hover:text-white"
+              >
+                <Pencil className="h-3 w-3" /> 편집
+              </button>
+            </div>
+          )}
         </>
       )}
 
-      <LyricsEditModal
-        open={editOpen}
-        track={track}
-        initial={raw}
-        onClose={() => setEditOpen(false)}
-        onSaved={() => {
-          setEditOpen(false);
-          void load();
-        }}
-      />
-      <LyricsSyncEditor
-        open={syncOpen}
-        track={track}
-        initial={raw}
-        onClose={() => setSyncOpen(false)}
-        onSaved={() => {
-          setSyncOpen(false);
-          void load();
-        }}
-      />
+      {isOwner && (
+        <>
+          <LyricsEditModal
+            open={editOpen}
+            track={track}
+            initial={raw}
+            onClose={() => setEditOpen(false)}
+            onSaved={() => setEditOpen(false)}
+          />
+          <LyricsSyncEditor
+            open={syncOpen}
+            track={track}
+            initial={raw}
+            onClose={() => setSyncOpen(false)}
+            onSaved={() => setSyncOpen(false)}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -240,17 +217,11 @@ function LyricsEditModal({
     if (busy || !content.trim()) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/lyrics/${track.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
-      });
-      const data = (await res.json()) as { format?: string; error?: string };
-      if (!res.ok) throw new Error(data.error || "저장에 실패했습니다");
+      const format = await saveLyrics(track.id, content);
       addToast({
         type: "success",
         message:
-          data.format === "lrc"
+          format === "lrc"
             ? "싱크 가사(LRC)로 저장했습니다"
             : "가사를 저장했습니다 (타임스탬프 없음 — 정적 표시)",
       });
@@ -269,8 +240,7 @@ function LyricsEditModal({
     if (busy) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/lyrics/${track.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
+      await deleteLyrics(track.id);
       addToast({ type: "success", message: "가사를 삭제했습니다" });
       setContent("");
       onSaved();
@@ -330,9 +300,7 @@ function LyricsEditModal({
           className="w-full resize-y rounded-xl border border-strong bg-surface-primary px-4 py-3 text-sm leading-relaxed text-heading outline-none transition-colors placeholder:text-caption focus:border-bora-500 focus:ring-1 focus:ring-bora-500"
         />
         <p className="text-xs text-caption">
-          파일은 곡 옆에 <code className="rounded bg-surface-secondary px-1">.lrc</code>/
-          <code className="rounded bg-surface-secondary px-1">.txt</code> 로 저장되며, WAV
-          원본은 수정하지 않아요.
+          가사는 곡 정보에 함께 저장되며, 공개 곡이면 감상자에게도 보여요.
         </p>
       </div>
     </Modal>

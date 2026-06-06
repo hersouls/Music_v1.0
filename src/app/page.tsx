@@ -321,7 +321,7 @@ export default function HomePage() {
             >
               {tracks.length === 0 ? (
                 <p className="px-5 py-10 text-center text-sm text-caption">
-                  .Music 폴더에 음악 파일이 없습니다
+                  아직 등록한 곡이 없습니다 — 보관함에서 곡을 올려보세요
                 </p>
               ) : (
                 <ul className="divide-y divide-surface-2">

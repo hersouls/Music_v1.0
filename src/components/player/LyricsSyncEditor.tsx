@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePlayerStore } from "@/stores/usePlayerStore";
 import { useToastStore } from "@/stores/useToastStore";
+import { saveLyrics } from "@/lib/firestore-tracks";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { buildLrc, splitLyricLines, formatLrcTime, parseLyrics } from "@/lib/lrc";
 import { formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -26,7 +28,7 @@ import {
    ① 붙여넣기: 가사 텍스트 입력 (기존 LRC 가져와 시작도 가능)
    ② 싱크: 곡을 들으며 "지금 줄" 버튼/Space 로 현재 줄에 타임스탬프를
       찍고 다음 줄로 진행. 각 줄 시각은 표에서 미세조정·되돌리기 가능.
-   완료 시 LRC 로 저장(/api/lyrics PUT).
+   완료 시 LRC 로 트랙 문서(lyrics 필드)에 저장.
    ─────────────────────────────────────────── */
 
 interface EditLine {
@@ -102,10 +104,20 @@ export default function LyricsSyncEditor({
     if (aiBusy || !text.trim()) return;
     setAiBusy(true);
     try {
-      const res = await fetch(`/api/lyrics/${track.id}/align`, {
+      const idToken = await getFirebaseAuth().currentUser?.getIdToken();
+      if (!idToken) throw new Error("로그인이 필요합니다");
+      const res = await fetch("/api/lyrics/align", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lyrics: text }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          lyrics: text,
+          // 스트리밍 mp3 (작음·Whisper 25MB 한도 안전) 우선, 없으면 원본
+          audioUrl: track.streamUrl || track.originalUrl,
+          duration: track.duration,
+        }),
       });
       const data = (await res.json()) as {
         lines?: EditLine[];
@@ -210,17 +222,11 @@ export default function LyricsSyncEditor({
     if (!content.trim()) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/lyrics/${track.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
-      });
-      const data = (await res.json()) as { format?: string; error?: string };
-      if (!res.ok) throw new Error(data.error || "저장에 실패했습니다");
+      const format = await saveLyrics(track.id, content);
       addToast({
         type: "success",
         message:
-          data.format === "lrc"
+          format === "lrc"
             ? `싱크 가사 저장 완료 (${stampedCount}줄 타이밍)`
             : "가사를 저장했습니다",
       });

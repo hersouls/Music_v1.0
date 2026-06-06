@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, Pause, Heart, FolderInput } from "lucide-react";
+import { Play, Pause, Heart, FolderInput, Globe, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime, formatSampleRate } from "@/lib/format";
 import { usePlayerStore } from "@/stores/usePlayerStore";
@@ -20,6 +20,7 @@ export default function TrackRow({
   showPlayCount = false,
   showAlbum = true,
   onMove,
+  onToggleVisibility,
 }: {
   track: Track;
   /** 표시용 순번 (1부터). 생략 시 숨김 */
@@ -31,6 +32,8 @@ export default function TrackRow({
   showAlbum?: boolean;
   /** 지정 시 "앨범으로 이동" 버튼 노출 (보관함 관리) */
   onMove?: (track: Track) => void;
+  /** 지정 시 공개/비공개 토글 버튼 노출 (보관함 관리) */
+  onToggleVisibility?: (track: Track) => void;
 }) {
   const currentId = usePlayerStore((s) => s.currentId);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -42,6 +45,7 @@ export default function TrackRow({
 
   const isCurrent = currentId === track.id;
   const playing = isCurrent && isPlaying;
+  const isPrivate = track.visibility === "private";
 
   function handleRowClick() {
     if (isCurrent) toggle();
@@ -99,11 +103,17 @@ export default function TrackRow({
       <div className="min-w-0 flex-1">
         <p
           className={cn(
-            "truncate text-sm font-medium",
+            "flex items-center gap-1.5 truncate text-sm font-medium",
             isCurrent ? "text-bora-700" : "text-heading"
           )}
         >
-          {track.title}
+          <span className="truncate">{track.title}</span>
+          {isPrivate && !onToggleVisibility && (
+            <Lock
+              className="h-3 w-3 shrink-0 text-caption"
+              aria-label="비공개"
+            />
+          )}
         </p>
         <p className="truncate text-xs text-caption">
           {track.artist}
@@ -122,6 +132,27 @@ export default function TrackRow({
       <span className="shrink-0 text-xs tabular-nums text-caption">
         {formatTime(track.duration)}
       </span>
+
+      {onToggleVisibility && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleVisibility(track);
+          }}
+          aria-label={
+            isPrivate ? `${track.title} 공개로 전환` : `${track.title} 비공개로 전환`
+          }
+          title={isPrivate ? "비공개 — 클릭해서 공개" : "공개 — 클릭해서 비공개"}
+          className={cn(
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-surface-tertiary",
+            isPrivate
+              ? "text-amber-500 hover:text-amber-600"
+              : "text-caption opacity-0 hover:text-bora-600 focus-visible:opacity-100 group-hover:opacity-100"
+          )}
+        >
+          {isPrivate ? <Lock className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+        </button>
+      )}
 
       {onMove && (
         <button

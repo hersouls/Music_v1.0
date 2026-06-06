@@ -1,20 +1,22 @@
-import { promises as fs } from "node:fs";
-
 /* ───────────────────────────────────────────
    WAV → Whisper 입력용 16kHz 모노 16-bit WAV (서버 전용)
    — 원본(48kHz 스테레오 ~40MB)을 음성인식에 충분한 16kHz 모노로
      줄여 OpenAI 25MB 한도를 넘기지 않게 한다. ffmpeg 불필요.
    ─────────────────────────────────────────── */
 
-/** 16-bit PCM WAV 만 지원 (.Music 의 WAV 는 모두 해당). 그 외엔 throw */
-export async function wavToWhisperMono16k(filePath: string): Promise<Buffer> {
-  const buf = await fs.readFile(filePath);
-  if (
-    buf.length < 44 ||
-    buf.toString("ascii", 0, 4) !== "RIFF" ||
-    buf.toString("ascii", 8, 12) !== "WAVE"
-  ) {
-    throw new Error("WAV 형식이 아닙니다 (AI 싱크는 WAV 파일만 지원)");
+/** RIFF/WAVE 매직 확인 */
+export function isWavBuffer(buf: Buffer): boolean {
+  return (
+    buf.length >= 44 &&
+    buf.toString("ascii", 0, 4) === "RIFF" &&
+    buf.toString("ascii", 8, 12) === "WAVE"
+  );
+}
+
+/** 16-bit PCM WAV 만 지원. 그 외엔 throw */
+export function wavBufferToWhisperMono16k(buf: Buffer): Buffer {
+  if (!isWavBuffer(buf)) {
+    throw new Error("WAV 형식이 아닙니다");
   }
 
   let off = 12;

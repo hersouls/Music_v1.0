@@ -1,13 +1,15 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useAlbums } from "@/contexts/TracksContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToastStore } from "@/stores/useToastStore";
+import { uploadTrack, extOf, type UploadPhase } from "@/lib/upload";
 import { formatBytes } from "@/lib/format";
-import { uid, cn } from "@/lib/utils";
+import { uid as makeUid, cn } from "@/lib/utils";
 import Modal from "@/components/ui/Modal";
 import { Field, fieldInputClass } from "@/components/ui/Form";
+import type { Visibility } from "@/types/music";
 import {
   Upload,
   FileAudio,
@@ -20,28 +22,33 @@ import {
 
 /* ───────────────────────────────────────────
    곡 등록 모달 — 드래그&드롭/선택한 오디오 파일을
-   /api/upload 로 1개씩 순차 업로드해 .Music 에 저장.
-   완료 시 router.refresh() → 서버 재스캔으로 보관함 갱신.
+   클라이언트에서 직접 Firebase 에 업로드.
+   WAV/FLAC 은 ffmpeg.wasm 으로 192k mp3 동시 생성(스트리밍용),
+   원본은 그대로 보관. 완료 즉시 Firestore 구독으로 보관함 갱신.
    ─────────────────────────────────────────── */
 
 const ALLOWED_EXTS = [".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"];
 const ACCEPT = `audio/*,${ALLOWED_EXTS.join(",")}`;
 
-type Status = "ready" | "uploading" | "done" | "error";
+type Status = "ready" | "working" | "done" | "error";
 
 interface PendingFile {
   id: string;
   file: File;
   status: Status;
   error?: string;
-  /** 서버가 저장한 최종 파일명 (중복 시 " (2)" 접미사) */
-  finalName?: string;
+  /** 진행 단계 라벨 (변환 중 / 업로드 중 …) */
+  phaseLabel?: string;
+  /** 0~100 진행률 (변환·업로드) */
+  pct?: number;
 }
 
-function extOf(name: string): string {
-  const i = name.lastIndexOf(".");
-  return i >= 0 ? name.slice(i).toLowerCase() : "";
-}
+const PHASE_LABEL: Record<UploadPhase, string> = {
+  probe: "분석 중",
+  convert: "mp3 변환 중",
+  upload: "업로드 중",
+  finalize: "마무리 중",
+};
 
 export default function UploadTracksModal({
   open,
@@ -50,17 +57,18 @@ export default function UploadTracksModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const router = useRouter();
+  const { uid, user } = useAuth();
   const addToast = useToastStore((s) => s.addToast);
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<PendingFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  /* 앨범 선택 — 기존 폴더 목록(빈 앨범 포함) + 새 앨범 만들기 ("" = 싱글/루트) */
+  /* 앨범 선택 — 내 곡에서 파생된 앨범 목록 + 새 앨범 ("" = 싱글) */
   const NEW_ALBUM = "__new__";
   const [albumChoice, setAlbumChoice] = useState("");
   const [newAlbum, setNewAlbum] = useState("");
+  const [visibility, setVisibility] = useState<Visibility>("public");
   const existingAlbums = useAlbums();
   const effectiveAlbum =
     albumChoice === NEW_ALBUM ? newAlbum.trim() : albumChoice;
@@ -80,7 +88,7 @@ export default function UploadTracksModal({
       if (dup) continue;
       const valid = ALLOWED_EXTS.includes(extOf(file.name));
       next.push({
-        id: uid(),
+        id: makeUid(),
         file,
         status: valid ? "ready" : "error",
         error: valid ? undefined : "지원하지 않는 형식",
@@ -98,24 +106,38 @@ export default function UploadTracksModal({
   }
 
   async function uploadAll() {
-    if (uploading || readyCount === 0) return;
+    if (uploading || readyCount === 0 || !uid) return;
     setUploading(true);
+    const ownerName =
+      user?.displayName || user?.email?.split("@")[0] || "Moonwave";
     let success = 0;
     for (const item of items) {
       if (item.status !== "ready") continue;
-      patch(item.id, { status: "uploading" });
+      patch(item.id, { status: "working", phaseLabel: "분석 중", pct: 0 });
       try {
-        const fd = new FormData();
-        fd.append("file", item.file);
-        if (effectiveAlbum) fd.append("album", effectiveAlbum);
-        const res = await fetch("/api/upload", { method: "POST", body: fd });
-        const data = (await res.json()) as { fileName?: string; error?: string };
-        if (!res.ok) throw new Error(data.error || "업로드에 실패했습니다");
-        patch(item.id, { status: "done", finalName: data.fileName });
+        await uploadTrack(
+          {
+            file: item.file,
+            album: effectiveAlbum,
+            visibility,
+            uid,
+            ownerName,
+          },
+          {
+            onProgress: (phase, ratio) =>
+              patch(item.id, {
+                phaseLabel: PHASE_LABEL[phase],
+                pct: Math.round(ratio * 100),
+              }),
+          }
+        );
+        patch(item.id, { status: "done", phaseLabel: undefined, pct: undefined });
         success++;
       } catch (e) {
         patch(item.id, {
           status: "error",
+          phaseLabel: undefined,
+          pct: undefined,
           error: e instanceof Error ? e.message : "업로드에 실패했습니다",
         });
       }
@@ -123,7 +145,6 @@ export default function UploadTracksModal({
     setUploading(false);
     if (success > 0) {
       addToast({ type: "success", message: `${success}곡을 보관함에 등록했습니다` });
-      router.refresh(); // 서버 재스캔 → TracksProvider 갱신
     }
   }
 
@@ -133,6 +154,7 @@ export default function UploadTracksModal({
     setDragOver(false);
     setAlbumChoice("");
     setNewAlbum("");
+    setVisibility("public");
     onClose();
   }
 
@@ -177,45 +199,55 @@ export default function UploadTracksModal({
       }
     >
       <div className="space-y-4">
-        {/* 앨범 선택 — 폴더 = 앨범 */}
-        <Field
-          label="앨범"
-          hint={
-            albumChoice === ""
-              ? "싱글은 .Music 바로 아래에, 앨범은 같은 이름의 폴더에 저장돼요"
-              : undefined
-          }
-        >
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <select
-              value={albumChoice}
-              onChange={(e) => setAlbumChoice(e.target.value)}
-              disabled={uploading || allFinished}
-              aria-label="앨범 선택"
-              className={cn(fieldInputClass, "sm:flex-1")}
-            >
-              <option value="">싱글 (앨범 없음)</option>
-              {existingAlbums.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-              <option value={NEW_ALBUM}>＋ 새 앨범 만들기</option>
-            </select>
-            {albumChoice === NEW_ALBUM && (
-              <input
-                type="text"
-                value={newAlbum}
-                onChange={(e) => setNewAlbum(e.target.value)}
+        {/* 앨범 + 공개 설정 */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="앨범">
+            <div className="flex flex-col gap-2">
+              <select
+                value={albumChoice}
+                onChange={(e) => setAlbumChoice(e.target.value)}
                 disabled={uploading || allFinished}
-                placeholder="새 앨범 이름"
-                aria-label="새 앨범 이름"
-                autoFocus
-                className={cn(fieldInputClass, "sm:flex-1")}
-              />
-            )}
-          </div>
-        </Field>
+                aria-label="앨범 선택"
+                className={cn(fieldInputClass)}
+              >
+                <option value="">싱글 (앨범 없음)</option>
+                {existingAlbums.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+                <option value={NEW_ALBUM}>＋ 새 앨범 만들기</option>
+              </select>
+              {albumChoice === NEW_ALBUM && (
+                <input
+                  type="text"
+                  value={newAlbum}
+                  onChange={(e) => setNewAlbum(e.target.value)}
+                  disabled={uploading || allFinished}
+                  placeholder="새 앨범 이름"
+                  aria-label="새 앨범 이름"
+                  autoFocus
+                  className={cn(fieldInputClass)}
+                />
+              )}
+            </div>
+          </Field>
+          <Field
+            label="공개 설정"
+            hint={visibility === "public" ? "둘러보기에서 모두가 들을 수 있어요" : "나만 들을 수 있어요"}
+          >
+            <select
+              value={visibility}
+              onChange={(e) => setVisibility(e.target.value as Visibility)}
+              disabled={uploading || allFinished}
+              aria-label="공개 설정"
+              className={cn(fieldInputClass)}
+            >
+              <option value="public">공개</option>
+              <option value="private">비공개</option>
+            </select>
+          </Field>
+        </div>
 
         {/* 드롭 존 */}
         <button
@@ -266,52 +298,64 @@ export default function UploadTracksModal({
         {items.length > 0 && (
           <ul className="divide-y divide-surface-2 overflow-hidden rounded-2xl border border-strong">
             {items.map((item) => (
-              <li key={item.id} className="flex items-center gap-3 bg-surface-primary px-4 py-3">
-                <div
-                  className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                    item.status === "error"
-                      ? "bg-red-50 text-red-500"
-                      : "bg-bora-50 text-bora-600"
-                  )}
-                >
-                  <FileAudio className="h-4.5 w-4.5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-heading">
-                    {item.finalName ?? item.file.name}
-                  </p>
-                  <p className="truncate text-xs text-caption">
-                    {item.status === "error" ? (
-                      <span className="text-red-500">{item.error}</span>
-                    ) : (
-                      <>
-                        {formatBytes(item.file.size)}
-                        {item.finalName && item.finalName !== item.file.name &&
-                          " · 같은 이름이 있어 새 이름으로 저장"}
-                      </>
+              <li key={item.id} className="bg-surface-primary px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={cn(
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                      item.status === "error"
+                        ? "bg-red-50 text-red-500"
+                        : "bg-bora-50 text-bora-600"
                     )}
-                  </p>
-                </div>
-                {/* 업로드 시작 후에는 제거 불가 — 순차 루프가 스냅샷을 돌므로
-                    제거해도 실제 업로드는 진행되는 불일치를 원천 차단 */}
-                {item.status === "ready" && !uploading && (
-                  <button
-                    onClick={() => removeItem(item.id)}
-                    aria-label={`${item.file.name} 제거`}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-caption transition-colors hover:bg-surface-tertiary hover:text-body"
                   >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-                {item.status === "uploading" && (
-                  <Loader2 className="h-4.5 w-4.5 shrink-0 animate-spin text-bora-500" />
-                )}
-                {item.status === "done" && (
-                  <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-emerald-500" />
-                )}
-                {item.status === "error" && (
-                  <XCircle className="h-4.5 w-4.5 shrink-0 text-red-500" />
+                    <FileAudio className="h-4.5 w-4.5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-heading">
+                      {item.file.name}
+                    </p>
+                    <p className="truncate text-xs text-caption">
+                      {item.status === "error" ? (
+                        <span className="text-red-500">{item.error}</span>
+                      ) : item.status === "working" ? (
+                        <>
+                          {item.phaseLabel}
+                          {item.pct != null && item.pct > 0 && ` ${item.pct}%`}
+                        </>
+                      ) : (
+                        formatBytes(item.file.size)
+                      )}
+                    </p>
+                  </div>
+                  {/* 업로드 시작 후에는 제거 불가 — 순차 루프가 스냅샷을 돌므로
+                      제거해도 실제 업로드는 진행되는 불일치를 원천 차단 */}
+                  {item.status === "ready" && !uploading && (
+                    <button
+                      onClick={() => removeItem(item.id)}
+                      aria-label={`${item.file.name} 제거`}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-caption transition-colors hover:bg-surface-tertiary hover:text-body"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                  {item.status === "working" && (
+                    <Loader2 className="h-4.5 w-4.5 shrink-0 animate-spin text-bora-500" />
+                  )}
+                  {item.status === "done" && (
+                    <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-emerald-500" />
+                  )}
+                  {item.status === "error" && (
+                    <XCircle className="h-4.5 w-4.5 shrink-0 text-red-500" />
+                  )}
+                </div>
+                {/* 진행 바 */}
+                {item.status === "working" && item.pct != null && (
+                  <div className="ml-12 mt-2 h-1 overflow-hidden rounded-full bg-surface-secondary">
+                    <div
+                      className="h-full rounded-full bg-bora-500 transition-[width] duration-300"
+                      style={{ width: `${item.pct}%` }}
+                    />
+                  </div>
                 )}
               </li>
             ))}
@@ -321,7 +365,7 @@ export default function UploadTracksModal({
         {items.length === 0 && (
           <p className="flex items-center justify-center gap-1.5 text-xs text-caption">
             <Music2 className="h-3.5 w-3.5" aria-hidden="true" />
-            등록한 곡은 .Music 폴더에 원본 그대로 보관됩니다
+            원본은 클라우드에 그대로 보관되고, WAV 는 스트리밍용 mp3 가 함께 만들어져요
           </p>
         )}
       </div>

@@ -1,23 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useTracks } from "@/contexts/TracksContext";
 import { useToastStore } from "@/stores/useToastStore";
-import { usePlayerStore } from "@/stores/usePlayerStore";
+import { renameAlbum } from "@/lib/firestore-tracks";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/Modal";
 import { Field, fieldInputClass } from "@/components/ui/Form";
-import { FolderPlus, Pencil, Loader2 } from "lucide-react";
+import { Pencil, Loader2 } from "lucide-react";
 
 /* ───────────────────────────────────────────
-   앨범 이름 모달 — 새 앨범 만들기 / 이름 변경 공용
-   이름 변경 시 서버가 돌려주는 id 리맵 쌍으로
-   즐겨찾기·재생수 등 청취 데이터를 새 id 로 이관.
+   앨범 이름 변경 모달 — 해당 앨범의 내 곡 album 필드 일괄 갱신
+   (문서 id 불변 → 즐겨찾기·재생수·재생 중 곡 모두 그대로)
+   새 앨범은 곡 등록/이동에서 이름 입력으로 생성된다.
    ─────────────────────────────────────────── */
 
-export type AlbumNameModalState =
-  | { mode: "create" }
-  | { mode: "rename"; name: string };
+export type AlbumNameModalState = { mode: "rename"; name: string };
 
 export default function AlbumNameModal({
   state,
@@ -26,17 +24,15 @@ export default function AlbumNameModal({
   state: AlbumNameModalState | null;
   onClose: () => void;
 }) {
-  const router = useRouter();
+  const tracks = useTracks();
   const addToast = useToastStore((s) => s.addToast);
-  const remapTrackIds = usePlayerStore((s) => s.remapTrackIds);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
 
   const open = state !== null;
-  const isRename = state?.mode === "rename";
 
   useEffect(() => {
-    if (state) setName(state.mode === "rename" ? state.name : "");
+    if (state) setName(state.name);
   }, [state]);
 
   function handleClose() {
@@ -47,37 +43,17 @@ export default function AlbumNameModal({
   async function submit() {
     const trimmed = name.trim();
     if (!trimmed || busy || !state) return;
-    if (isRename && trimmed === state.name) {
+    if (trimmed === state.name) {
       onClose();
       return;
     }
     setBusy(true);
     try {
-      const res = isRename
-        ? await fetch("/api/albums", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ from: state.name, to: trimmed }),
-          })
-        : await fetch("/api/albums", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: trimmed }),
-          });
-      const data = (await res.json()) as {
-        name?: string;
-        error?: string;
-        moved?: { oldId: string; newId: string }[];
-      };
-      if (!res.ok) throw new Error(data.error || "요청에 실패했습니다");
-      if (data.moved?.length) remapTrackIds(data.moved);
+      await renameAlbum(tracks, state.name, trimmed);
       addToast({
         type: "success",
-        message: isRename
-          ? `앨범 이름을 「${data.name}」(으)로 변경했습니다`
-          : `앨범 「${data.name}」을(를) 만들었습니다`,
+        message: `앨범 이름을 「${trimmed}」(으)로 변경했습니다`,
       });
-      router.refresh();
       onClose();
     } catch (e) {
       addToast({
@@ -93,7 +69,7 @@ export default function AlbumNameModal({
     <Modal
       open={open}
       onClose={handleClose}
-      title={isRename ? "앨범 이름 변경" : "새 앨범 만들기"}
+      title="앨범 이름 변경"
       footer={
         <div className="flex justify-end gap-2">
           <button
@@ -110,12 +86,10 @@ export default function AlbumNameModal({
           >
             {busy ? (
               <Loader2 className="h-4 w-4 animate-spin" />
-            ) : isRename ? (
-              <Pencil className="h-4 w-4" />
             ) : (
-              <FolderPlus className="h-4 w-4" />
+              <Pencil className="h-4 w-4" />
             )}
-            {isRename ? "변경" : "만들기"}
+            변경
           </button>
         </div>
       }
@@ -128,11 +102,7 @@ export default function AlbumNameModal({
       >
         <Field
           label="앨범 이름"
-          hint={
-            isRename
-              ? "폴더 이름이 함께 바뀌며, 안의 곡과 청취 기록은 그대로 유지돼요"
-              : ".Music 아래에 같은 이름의 폴더가 만들어져요"
-          }
+          hint="앨범 안의 곡과 청취 기록은 그대로 유지돼요"
           required
         >
           <input
