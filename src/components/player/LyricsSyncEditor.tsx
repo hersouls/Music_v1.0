@@ -17,6 +17,7 @@ import {
   CornerDownLeft,
   Check,
   Music2,
+  Sparkles,
 } from "lucide-react";
 
 /* ───────────────────────────────────────────
@@ -61,6 +62,7 @@ export default function LyricsSyncEditor({
   const [lines, setLines] = useState<EditLine[]>([]);
   const [cursor, setCursor] = useState(0); // 다음에 타임스탬프 찍을 줄
   const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
 
   const activeRef = useRef<HTMLLIElement>(null);
 
@@ -92,6 +94,43 @@ export default function LyricsSyncEditor({
     if (currentId !== track.id) {
       playTrack(track.id);
       seek(0);
+    }
+  }
+
+  /** AI 자동 싱크 — OpenAI Whisper 로 초안 생성 후 검토 단계로 진입 */
+  async function aiAlign() {
+    if (aiBusy || !text.trim()) return;
+    setAiBusy(true);
+    try {
+      const res = await fetch(`/api/lyrics/${track.id}/align`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lyrics: text }),
+      });
+      const data = (await res.json()) as {
+        lines?: EditLine[];
+        error?: string;
+      };
+      if (!res.ok || !data.lines?.length) {
+        throw new Error(data.error || "AI 싱크에 실패했습니다");
+      }
+      setLines(data.lines);
+      setCursor(data.lines.length); // 전부 채워진 상태로 검토
+      setPhase("sync");
+      if (currentId !== track.id) playTrack(track.id);
+      addToast({
+        type: "success",
+        message: "AI 초안 완성 — 들어보며 줄별 ± 로 미세조정하세요",
+        duration: 5000,
+      });
+    } catch (e) {
+      addToast({
+        type: "error",
+        message: e instanceof Error ? e.message : "AI 싱크에 실패했습니다",
+        duration: 6000,
+      });
+    } finally {
+      setAiBusy(false);
     }
   }
 
@@ -207,21 +246,33 @@ export default function LyricsSyncEditor({
       }
       footer={
         phase === "paste" ? (
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               onClick={onClose}
-              disabled={busy}
-              className="rounded-xl border border-strong bg-surface-primary px-4 py-2.5 text-sm font-medium text-body transition-colors hover:bg-surface-secondary disabled:opacity-50"
+              disabled={busy || aiBusy}
+              className="mr-auto rounded-xl border border-strong bg-surface-primary px-4 py-2.5 text-sm font-medium text-body transition-colors hover:bg-surface-secondary disabled:opacity-50"
             >
               취소
             </button>
             <button
+              onClick={aiAlign}
+              disabled={!text.trim() || aiBusy}
+              className="flex items-center gap-2 rounded-xl border border-bora-200 bg-bora-50 px-4 py-2.5 text-sm font-semibold text-bora-700 transition-colors hover:bg-bora-100 disabled:opacity-50"
+            >
+              {aiBusy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {aiBusy ? "AI 맞추는 중…" : "AI로 자동 싱크"}
+            </button>
+            <button
               onClick={startSync}
-              disabled={!text.trim()}
+              disabled={!text.trim() || aiBusy}
               className="flex items-center gap-2 rounded-xl bg-bora-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-bora-700 disabled:opacity-50"
             >
               <Play className="h-4 w-4" fill="currentColor" />
-              싱크 시작
+              직접 찍기
             </button>
           </div>
         ) : (
@@ -255,7 +306,9 @@ export default function LyricsSyncEditor({
         <div className="space-y-3">
           <p className="text-sm text-body">
             가사를 한 줄에 한 소절씩 붙여넣으세요. 빈 줄은 간주(♪)로 표시됩니다.
-            다음 화면에서 곡을 들으며 줄마다 타이밍을 찍어 싱크 가사를 만듭니다.
+            <strong className="font-semibold text-bora-700"> AI로 자동 싱크</strong>는
+            초안을 자동 생성하고, <strong className="font-semibold text-heading">직접 찍기</strong>는
+            곡을 들으며 줄마다 타이밍을 찍습니다.
           </p>
           <textarea
             value={text}
@@ -267,8 +320,8 @@ export default function LyricsSyncEditor({
             className="w-full resize-y rounded-xl border border-strong bg-surface-primary px-4 py-3 text-sm leading-relaxed text-heading outline-none transition-colors placeholder:text-caption focus:border-bora-500 focus:ring-1 focus:ring-bora-500"
           />
           <p className="text-xs text-caption">
-            이미 <code className="rounded bg-surface-secondary px-1">[00:12.50]</code> 형식
-            타임스탬프가 있으면 싱크 단계를 건너뛰고 그대로 저장해도 됩니다.
+            AI 자동 싱크는 OpenAI Whisper 를 사용합니다 (.env.local 에 API 키 필요).
+            AI 보컬·한국어는 한두 줄 어긋날 수 있어 다음 화면에서 ± 로 다듬으면 됩니다.
           </p>
         </div>
       ) : (

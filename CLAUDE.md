@@ -27,7 +27,8 @@ pnpm typecheck  # tsc --noEmit
   - `api/upload/route.ts` — 곡 등록(파일 1개씩 multipart, 선택 `album` 필드 → `.Music/<앨범>/` 저장). 파일명·앨범명 정제(경로 탈출·금지문자 차단)+확장자 허용목록+WAV 매직바이트 검증, 중복 파일명은 " (2)" 접미사로 원본 보존
   - `api/albums/route.ts` — 앨범 관리: POST 생성 / PATCH 이름변경 / DELETE 삭제(안의 곡은 싱글로 안전 이동, 오디오 외 파일 남으면 폴더 보존). 응답 `moved:[{oldId,newId}]` 로 클라이언트 청취 데이터 리맵
   - `api/tracks/move/route.ts` — 곡을 앨범↔싱글로 이동(대상 폴더 즉석 생성, 충돌 " (2)"), 동일 리맵 응답
-  - `api/lyrics/[id]/route.ts` — 가사 사이드카(곡 옆 `<같은 이름>.lrc/.txt`) GET/PUT(LRC 자동 감지·반대 확장자 제거)/DELETE. **WAV 원본 불변**
+  - `api/lyrics/[id]/route.ts` — 가사 사이드카(곡 옆 `<같은 이름>.lrc/.txt`) GET(없으면 200+null)/PUT(LRC 자동 감지·반대 확장자 제거)/DELETE. **WAV 원본 불변**
+  - `api/lyrics/[id]/align/route.ts` — **AI 자동 싱크**(POST {lyrics}): WAV→16kHz 모노 축소(`audio-resample.ts`, ffmpeg 불필요·25MB 한도 회피)→OpenAI Whisper 전사(verbose_json)→`align.ts`(세그먼트 타임라인에 가사 줄 글자수 비례 정렬)→`{lines:[{text,time}]}`. 키는 `OPENAI_API_KEY`(서버 전용), 미설정 503
   - layout 은 `force-dynamic` — 요청 시 `.Music` 재스캔 (+`getAlbumDirs()` 빈 폴더 포함 앨범 목록)
 - `src/lib/tracks.server.ts` — `.Music` 스캐너(**1단계 깊이: 하위 폴더 = 앨범**, 루트 파일 = 싱글). **WAV RIFF 헤더만 직접 파싱**해 duration·sampleRate 추출(파일 전체 안 읽음), 상대경로 md5 12자리가 트랙 id(루트 파일은 기존 파일명 해시와 동일 — 청취 데이터 보존), 모듈 캐시(relPath+size+mtime 키)
 - `src/lib/player-engine.ts` — Audio 엘리먼트 + AudioContext/Analyser 싱글톤. **스토어를 import 하지 않음**(순환 방지) — 이벤트는 `listeners` 주입
@@ -49,9 +50,9 @@ pnpm typecheck  # tsc --noEmit
 
 ## 가사 (싱크/정적, 로컬 전용)
 - NowPlaying 우상단 🎤 버튼으로 가사 뷰 토글. 가사 없으면 "가사 싱크 만들기"(탭-싱크) / "그냥 붙여넣기" 안내.
-- **탭-싱크**(`LyricsSyncEditor`): 가사 붙여넣기 → 곡 재생하며 줄 시작마다 Space/버튼 탭 → 줄별 타임스탬프 기록(±0.2s 미세조정·되돌리기) → LRC 저장. AI·외부 키 불필요, 한국어 정확.
+- **탭-싱크**(`LyricsSyncEditor`): 가사 붙여넣기 → ① "AI로 자동 싱크"(Whisper 초안) 또는 ② "직접 찍기"(곡 들으며 줄마다 Space/버튼 탭) → 줄별 타임스탬프(±0.2s 미세조정·되돌리기) → LRC 저장. AI 초안 후 ±조정이 권장 흐름.
 - 타임스탬프 있는 LRC를 그대로 붙여넣어도 자동 인식. 가사는 곡 옆 `.lrc`/`.txt` 사이드카(WAV 원본 불변). `Track.sunoId`(WAV ICMT) 는 메타로만 보존(현재 미사용).
-- ⚠️ 텍스트 AI 로는 자동 싱크 불가(오디오 타이밍 필요). 자동 정렬을 원하면 Whisper forced-alignment 류를 별도 연동해야 함.
+- ⚠️ AI 자동 싱크는 OpenAI Whisper(오디오 전사) 사용 — `.env.local` 의 `OPENAI_API_KEY` 필요, 음원이 OpenAI 로 업로드됨. 키 없으면 "직접 찍기"만으로도 완전 동작. 텍스트 LLM 단독으로는 타이밍 산출 불가.
 
 ## Setup
 1. `.Music/` 폴더에 WAV(mp3/m4a/ogg/flac 도 가능) 파일 배치
