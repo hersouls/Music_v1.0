@@ -1,5 +1,10 @@
 import { isWavBuffer, wavBufferToWhisperMono16k } from "@/lib/audio-resample";
-import { alignLyrics, type WhisperSegment } from "@/lib/align";
+import {
+  alignLyrics,
+  assessTranscription,
+  transcriptIssueMessage,
+  type WhisperSegment,
+} from "@/lib/align";
 import { splitLyricLines } from "@/lib/lrc";
 import {
   verifyIdToken,
@@ -134,13 +139,21 @@ export async function POST(req: Request) {
   }
 
   /* ③ OpenAI Whisper 전사 (plain fetch — SDK 불필요) */
-  let data: { segments?: WhisperSegment[]; error?: { message?: string } };
+  interface RawSegment {
+    start: number;
+    end: number;
+    text?: string;
+    no_speech_prob?: number;
+  }
+  let data: { segments?: RawSegment[]; error?: { message?: string } };
   try {
     const form = new FormData();
     form.append("file", payload, payloadName);
     form.append("model", "whisper-1");
     form.append("response_format", "verbose_json");
     form.append("language", "ko");
+    // 결정적 출력으로 환각 변동 최소화
+    form.append("temperature", "0");
     // 실제 가사를 힌트로 줘 인식 정확도 향상 (Whisper prompt 길이 제한 고려해 일부만)
     form.append("prompt", lyrics.slice(0, 600));
 
@@ -160,10 +173,11 @@ export async function POST(req: Request) {
     );
   }
 
-  const segments = (data.segments ?? []).map((s) => ({
+  const segments: WhisperSegment[] = (data.segments ?? []).map((s) => ({
     start: s.start,
     end: s.end,
     text: s.text ?? "",
+    noSpeechProb: typeof s.no_speech_prob === "number" ? s.no_speech_prob : undefined,
   }));
   if (!segments.length) {
     return Response.json(
@@ -172,7 +186,17 @@ export async function POST(req: Request) {
     );
   }
 
-  /* ④ 가사 줄 정렬 */
+  /* ④ 전사 신뢰도 평가 — 환각(반복·무음 날조)이면 가비지 정렬을 내보내지 않고
+        정직하게 실패시켜 '직접 찍기'로 유도 */
+  const assessment = assessTranscription(segments, duration);
+  if (!assessment.usable && assessment.issue) {
+    return Response.json(
+      { error: transcriptIssueMessage(assessment.issue), issue: assessment.issue },
+      { status: 422 }
+    );
+  }
+
+  /* ⑤ 가사 줄 정렬 */
   const aligned = alignLyrics(lines, segments, duration);
   return Response.json({ ok: true, lines: aligned });
 }
