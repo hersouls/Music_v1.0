@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTracks } from "@/contexts/TracksContext";
+import { useAlbums } from "@/contexts/TracksContext";
 import { useToastStore } from "@/stores/useToastStore";
 import { formatBytes } from "@/lib/format";
 import { uid, cn } from "@/lib/utils";
@@ -51,24 +51,17 @@ export default function UploadTracksModal({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const tracks = useTracks();
   const addToast = useToastStore((s) => s.addToast);
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<PendingFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  /* 앨범 선택 — 기존 폴더 목록 + 새 앨범 만들기 ("" = 싱글/루트) */
+  /* 앨범 선택 — 기존 폴더 목록(빈 앨범 포함) + 새 앨범 만들기 ("" = 싱글/루트) */
   const NEW_ALBUM = "__new__";
   const [albumChoice, setAlbumChoice] = useState("");
   const [newAlbum, setNewAlbum] = useState("");
-  const existingAlbums = useMemo(
-    () =>
-      [...new Set(tracks.map((t) => t.album).filter(Boolean))].sort((a, b) =>
-        a.localeCompare(b, "ko")
-      ),
-    [tracks]
-  );
+  const existingAlbums = useAlbums();
   const effectiveAlbum =
     albumChoice === NEW_ALBUM ? newAlbum.trim() : albumChoice;
 

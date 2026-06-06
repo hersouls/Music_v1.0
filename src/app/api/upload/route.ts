@@ -1,5 +1,12 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { MUSIC_DIR } from "@/lib/tracks.server";
+import {
+  sanitizeFileName,
+  sanitizeAlbumName,
+  uniqueFileName,
+  isInside,
+} from "@/lib/music-fs";
 
 /* ───────────────────────────────────────────
    곡 등록 — 업로드 파일을 .Music 폴더에 저장
@@ -9,30 +16,8 @@ import path from "node:path";
         WAV 매직바이트 검증 + 중복 파일명은 " (2)" 접미사로 원본 보존.
    ─────────────────────────────────────────── */
 
-const MUSIC_DIR = path.join(process.cwd(), ".Music");
-
 const ALLOWED_EXTS = new Set([".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"]);
 const MAX_SIZE = 1024 * 1024 * 1024; // 1GB
-
-const FORBIDDEN_CHARS = '<>:"/\\|?*';
-
-/** 경로 구분자·제어문자·Windows 금지문자 제거 — 디렉토리 탈출 차단 */
-function sanitizeName(raw: string): string | null {
-  const base = Array.from(path.basename(raw))
-    .filter((ch) => ch.charCodeAt(0) >= 32 && !FORBIDDEN_CHARS.includes(ch))
-    .join("")
-    .trim();
-  if (!base || base.startsWith(".")) return null;
-  return base;
-}
-
-/** 앨범 폴더명 정제 — 파일명 규칙 + Windows 금지(말미 마침표·공백) 제거 */
-function sanitizeAlbum(raw: string): string | null {
-  const cleaned = sanitizeName(raw);
-  if (!cleaned) return null;
-  const folder = cleaned.replace(/[. ]+$/, "").trim();
-  return folder || null;
-}
 
 export async function POST(req: Request) {
   let form: FormData;
@@ -47,7 +32,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "파일이 없습니다" }, { status: 400 });
   }
 
-  const name = sanitizeName(file.name);
+  const name = sanitizeFileName(file.name);
   if (!name) {
     return Response.json({ error: "사용할 수 없는 파일명입니다" }, { status: 400 });
   }
@@ -82,7 +67,7 @@ export async function POST(req: Request) {
   const albumRaw = form.get("album");
   let album = "";
   if (typeof albumRaw === "string" && albumRaw.trim()) {
-    const folder = sanitizeAlbum(albumRaw);
+    const folder = sanitizeAlbumName(albumRaw);
     if (!folder) {
       return Response.json(
         { error: "사용할 수 없는 앨범 이름입니다" },
@@ -96,19 +81,10 @@ export async function POST(req: Request) {
   await fs.mkdir(destDir, { recursive: true });
 
   // 중복 파일명 — 덮어쓰지 않고 " (2)", " (3)" … 접미사
-  const stem = path.basename(name, ext);
-  let finalName = name;
-  for (let i = 2; ; i++) {
-    try {
-      await fs.access(path.join(destDir, finalName));
-      finalName = `${stem} (${i})${ext}`;
-    } catch {
-      break;
-    }
-  }
+  const finalName = await uniqueFileName(destDir, name);
 
   const target = path.resolve(destDir, finalName);
-  if (!target.startsWith(path.resolve(MUSIC_DIR) + path.sep)) {
+  if (!isInside(MUSIC_DIR, target)) {
     return Response.json({ error: "잘못된 경로입니다" }, { status: 400 });
   }
 

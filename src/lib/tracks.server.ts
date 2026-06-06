@@ -10,9 +10,9 @@ import { ARTIST_NAME } from "@/lib/constants";
      파일 전체를 읽지 않고 청크 헤더만 순회 (대용량 안전).
    ─────────────────────────────────────────── */
 
-const MUSIC_DIR = path.join(process.cwd(), ".Music");
+export const MUSIC_DIR = path.join(process.cwd(), ".Music");
 
-const AUDIO_EXTS: Record<string, string> = {
+export const AUDIO_EXTS: Record<string, string> = {
   ".wav": "audio/wav",
   ".mp3": "audio/mpeg",
   ".m4a": "audio/mp4",
@@ -90,8 +90,9 @@ async function readWavMeta(filePath: string): Promise<WavMeta | null> {
 /* 모듈 캐시 — 디렉토리 변경(경로·크기·mtime) 시에만 WAV 헤더 재파싱 */
 let cache: { key: string; tracks: Track[] } | null = null;
 
-/** id = 상대경로 해시 — 루트 파일은 relPath === fileName 이라 기존 id 와 동일(청취 데이터 보존) */
-function trackId(relPath: string): string {
+/** id = 상대경로 해시 — 루트 파일은 relPath === fileName 이라 기존 id 와 동일(청취 데이터 보존).
+    경로 구분자는 항상 "/" (이동·이름변경 라우트의 id 리맵 계산에도 사용) */
+export function trackId(relPath: string): string {
   return crypto.createHash("md5").update(relPath).digest("hex").slice(0, 12);
 }
 
@@ -192,6 +193,19 @@ export async function getTracks(): Promise<Track[]> {
   );
   cache = { key, tracks };
   return tracks;
+}
+
+/** 모든 앨범 폴더 이름 (빈 폴더 포함 — 앨범 관리 UI 용) */
+export async function getAlbumDirs(): Promise<string[]> {
+  try {
+    const dirents = await fs.readdir(MUSIC_DIR, { withFileTypes: true });
+    return dirents
+      .filter((d) => d.isDirectory() && !d.name.startsWith("."))
+      .map((d) => d.name)
+      .sort((a, b) => a.localeCompare(b, "ko"));
+  } catch {
+    return [];
+  }
 }
 
 /** 스트리밍 라우트용 — id → 실제 파일 경로/크기/타입 */

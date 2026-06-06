@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import AppShell from "@/components/app/AppShell";
 import MotionProvider from "@/components/app/MotionProvider";
-import { getTracks } from "@/lib/tracks.server";
+import { getTracks, getAlbumDirs } from "@/lib/tracks.server";
 import { BRAND_NAME, BRAND_NAME_KO, BRAND_TAGLINE, SITE_URL } from "@/lib/constants";
 import "./globals.css";
 
@@ -60,13 +60,15 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const tracks = await getTracks();
+  const [tracks, albums] = await Promise.all([getTracks(), getAlbumDirs()]);
 
   return (
     <html lang="ko" className={pretendard.variable}>
       <body className="font-sans antialiased bg-surface-secondary text-heading">
         <MotionProvider>
-          <AppShell tracks={tracks}>{children}</AppShell>
+          <AppShell tracks={tracks} albums={albums}>
+            {children}
+          </AppShell>
         </MotionProvider>
       </body>
     </html>

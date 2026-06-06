@@ -64,6 +64,8 @@ interface PlayerState {
   toggleFavorite: (id: string) => void;
   setNowPlayingOpen: (open: boolean) => void;
   resetStats: () => void;
+  /** 곡 이동/앨범 이름변경으로 트랙 id 가 바뀔 때 청취 데이터·큐를 새 id 로 이관 */
+  remapTrackIds: (pairs: { oldId: string; newId: string }[]) => void;
 
   /* 내부 — 엔진 이벤트 배선용 */
   _advance: (dir: 1 | -1, opts: { auto: boolean }) => void;
@@ -256,6 +258,33 @@ export const usePlayerStore = create<PlayerState>()(
       setNowPlayingOpen: (open) => set({ nowPlayingOpen: open }),
 
       resetStats: () => set({ playCounts: {}, recentPlays: [] }),
+
+      remapTrackIds: (pairs) => {
+        if (!pairs.length) return;
+        const dict = new Map(pairs.map((p) => [p.oldId, p.newId]));
+        const m = (id: string) => dict.get(id) ?? id;
+        const s = get();
+        const currentNewId = s.currentId ? dict.get(s.currentId) : undefined;
+        set({
+          favorites: s.favorites.map(m),
+          playCounts: Object.fromEntries(
+            Object.entries(s.playCounts).map(([id, c]) => [m(id), c])
+          ),
+          recentPlays: s.recentPlays.map((p) => ({ ...p, id: m(p.id) })),
+          lastTrackId: s.lastTrackId ? m(s.lastTrackId) : s.lastTrackId,
+          currentId: s.currentId ? m(s.currentId) : s.currentId,
+          queue: s.queue.map(m),
+          baseQueue: s.baseQueue.map(m),
+        });
+        // 재생 중인 곡이 이동됐으면 새 스트림 URL 로 재로드 + 위치 복원
+        if (currentNewId) {
+          playerEngine.load(
+            `/api/stream/${currentNewId}`,
+            s.isPlaying,
+            s.currentTime > 0 ? s.currentTime : undefined
+          );
+        }
+      },
 
       _advance: (dir, { auto }) => {
         const { queue, currentId, repeat } = get();

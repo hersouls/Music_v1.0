@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useTracks } from "@/contexts/TracksContext";
+import { useTracks, useAlbums } from "@/contexts/TracksContext";
 import { usePlayerStore } from "@/stores/usePlayerStore";
+import { useDialogStore } from "@/stores/useDialogStore";
+import { useToastStore } from "@/stores/useToastStore";
 import { formatBytes, formatDurationKo, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import PageHeader from "@/components/ui/PageHeader";
@@ -12,17 +14,26 @@ import SectionCard from "@/components/ui/SectionCard";
 import EmptyState from "@/components/ui/EmptyState";
 import TrackRow from "@/components/music/TrackRow";
 import UploadTracksModal from "@/components/app/UploadTracksModal";
+import AlbumNameModal, {
+  type AlbumNameModalState,
+} from "@/components/app/AlbumNameModal";
+import MoveTrackModal from "@/components/app/MoveTrackModal";
 import { fieldInputClass } from "@/components/ui/Form";
+import type { Track } from "@/types/music";
 import {
   Music2,
   Clock,
   Disc3,
+  FolderInput,
+  FolderPlus,
   HardDrive,
+  Pencil,
   Play,
   Plus,
   Shuffle,
   Search,
   ListMusic,
+  Trash2,
 } from "lucide-react";
 
 /* ───────────────────────────────────────────
@@ -40,11 +51,17 @@ const SORT_LABEL: Record<SortKey, string> = {
 
 export default function LibraryPage() {
   const tracks = useTracks();
+  const albumDirs = useAlbums();
   const playCounts = usePlayerStore((s) => s.playCounts);
   const playAll = usePlayerStore((s) => s.playAll);
+  const remapTrackIds = usePlayerStore((s) => s.remapTrackIds);
+  const openDialog = useDialogStore((s) => s.openDialog);
+  const addToast = useToastStore((s) => s.addToast);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("title");
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [albumModal, setAlbumModal] = useState<AlbumNameModalState | null>(null);
+  const [moveTrack, setMoveTrack] = useState<Track | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -107,14 +124,52 @@ export default function LibraryPage() {
     return root ? [...named, { name: "", list: root }] : named;
   }, [visible]);
 
-  const albumCount = useMemo(
-    () => new Set(tracks.map((t) => t.album).filter(Boolean)).size,
-    [tracks]
-  );
+  /* 곡이 없는 빈 앨범(폴더) — 관리 대상으로 함께 표시 */
+  const emptyAlbums = useMemo(() => {
+    const withTracks = new Set(tracks.map((t) => t.album).filter(Boolean));
+    return albumDirs.filter((a) => !withTracks.has(a));
+  }, [albumDirs, tracks]);
+
+  const albumCount = albumDirs.length;
   const singleCount = useMemo(
     () => tracks.filter((t) => !t.album).length,
     [tracks]
   );
+
+  /* 앨범 삭제 — 안의 곡은 싱글로 안전 이동 (id 리맵으로 청취 데이터 보존) */
+  function confirmDeleteAlbum(name: string, trackCount: number) {
+    openDialog({
+      title: "앨범 삭제",
+      description: trackCount
+        ? `「${name}」 앨범을 삭제합니다. 안의 ${trackCount}곡은 삭제되지 않고 싱글로 이동해요.`
+        : `빈 앨범 「${name}」을(를) 삭제합니다.`,
+      confirmLabel: "삭제",
+      variant: "danger",
+      onConfirm: async () => {
+        const res = await fetch(
+          `/api/albums?name=${encodeURIComponent(name)}`,
+          { method: "DELETE" }
+        );
+        const data = (await res.json()) as {
+          error?: string;
+          folderKept?: boolean;
+          moved?: { oldId: string; newId: string }[];
+        };
+        if (!res.ok) {
+          addToast({ type: "error", message: data.error || "삭제에 실패했습니다" });
+          throw new Error(data.error); // 다이얼로그 유지
+        }
+        if (data.moved?.length) remapTrackIds(data.moved);
+        addToast({
+          type: "success",
+          message: data.folderKept
+            ? "곡은 싱글로 이동했어요. 오디오 외 파일이 있어 폴더는 남겨두었습니다"
+            : `앨범 「${name}」을(를) 삭제했습니다`,
+        });
+        router.refresh();
+      },
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -134,7 +189,13 @@ export default function LibraryPage() {
           unit="개"
           icon={Disc3}
           iconClassName="text-amber-600 bg-amber-50"
-          sub={singleCount > 0 ? `싱글 ${singleCount}곡 별도` : "폴더 = 앨범"}
+          sub={
+            singleCount > 0
+              ? `싱글 ${singleCount}곡 별도`
+              : emptyAlbums.length
+                ? `빈 앨범 ${emptyAlbums.length}개`
+                : "폴더 = 앨범"
+          }
         />
         <StatCard
           label="총 재생 길이"
@@ -227,52 +288,122 @@ export default function LibraryPage() {
           </ul>
         </SectionCard>
       ) : (
-        /* 앨범 그룹 — 폴더별 SectionCard, 마지막에 싱글(루트 파일) */
-        albumGroups.map(({ name, list }) => {
-          const ids = list.map((t) => t.id);
-          const sec = list.reduce((s, t) => s + t.duration, 0);
-          return (
+        <>
+          {/* 앨범 그룹 — 폴더별 SectionCard, 마지막에 싱글(루트 파일) */}
+          {albumGroups.map(({ name, list }) => {
+            const ids = list.map((t) => t.id);
+            const sec = list.reduce((s, t) => s + t.duration, 0);
+            return (
+              <SectionCard
+                key={name || "__singles__"}
+                title={name || "싱글"}
+                icon={name ? Disc3 : Music2}
+                description={`${list.length}곡 · ${formatDurationKo(sec)} · ${SORT_LABEL[sortKey]}`}
+                action={
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => playAll({ shuffle: false, ids })}
+                      className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-bora-600 transition-colors hover:bg-bora-50 hover:text-bora-700"
+                    >
+                      <Play className="h-3.5 w-3.5" fill="currentColor" /> 재생
+                    </button>
+                    <button
+                      onClick={() => playAll({ shuffle: true, ids })}
+                      className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-bora-600 transition-colors hover:bg-bora-50 hover:text-bora-700"
+                    >
+                      <Shuffle className="h-3.5 w-3.5" /> 셔플
+                    </button>
+                    {name && (
+                      <AlbumManageButtons
+                        onRename={() => setAlbumModal({ mode: "rename", name })}
+                        onDelete={() => confirmDeleteAlbum(name, list.length)}
+                      />
+                    )}
+                  </div>
+                }
+                bodyClassName="p-0"
+              >
+                <ul className="divide-y divide-surface-2">
+                  {list.map((t, i) => (
+                    <TrackRow
+                      key={t.id}
+                      track={t}
+                      index={i + 1}
+                      contextIds={ids}
+                      showPlayCount
+                      showAlbum={false}
+                      onMove={setMoveTrack}
+                    />
+                  ))}
+                </ul>
+              </SectionCard>
+            );
+          })}
+
+          {/* 빈 앨범 — 곡 없이 폴더만 있는 경우 (관리 가능) */}
+          {emptyAlbums.map((name) => (
             <SectionCard
-              key={name || "__singles__"}
-              title={name || "싱글"}
-              icon={name ? Disc3 : Music2}
-              description={`${list.length}곡 · ${formatDurationKo(sec)} · ${SORT_LABEL[sortKey]}`}
+              key={`empty-${name}`}
+              title={name}
+              icon={Disc3}
+              description="빈 앨범"
               action={
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => playAll({ shuffle: false, ids })}
-                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-bora-600 transition-colors hover:bg-bora-50 hover:text-bora-700"
-                  >
-                    <Play className="h-3.5 w-3.5" fill="currentColor" /> 재생
-                  </button>
-                  <button
-                    onClick={() => playAll({ shuffle: true, ids })}
-                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-bora-600 transition-colors hover:bg-bora-50 hover:text-bora-700"
-                  >
-                    <Shuffle className="h-3.5 w-3.5" /> 셔플
-                  </button>
-                </div>
+                <AlbumManageButtons
+                  onRename={() => setAlbumModal({ mode: "rename", name })}
+                  onDelete={() => confirmDeleteAlbum(name, 0)}
+                />
               }
-              bodyClassName="p-0"
             >
-              <ul className="divide-y divide-surface-2">
-                {list.map((t, i) => (
-                  <TrackRow
-                    key={t.id}
-                    track={t}
-                    index={i + 1}
-                    contextIds={ids}
-                    showPlayCount
-                    showAlbum={false}
-                  />
-                ))}
-              </ul>
+              <p className="py-2 text-center text-sm text-caption">
+                아직 곡이 없습니다 — 곡 등록에서 이 앨범을 선택하거나, 곡의{" "}
+                <FolderInput className="inline h-3.5 w-3.5 align-[-2px]" /> 이동
+                버튼으로 옮겨보세요
+              </p>
             </SectionCard>
-          );
-        })
+          ))}
+
+          {/* 새 앨범 만들기 */}
+          <button
+            onClick={() => setAlbumModal({ mode: "create" })}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-strong bg-surface-primary px-6 py-5 text-sm font-medium text-body transition-colors hover:border-bora-300 hover:bg-bora-50/50 hover:text-bora-700"
+          >
+            <FolderPlus className="h-4.5 w-4.5" />
+            새 앨범 만들기
+          </button>
+        </>
       )}
 
       <UploadTracksModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
+      <AlbumNameModal state={albumModal} onClose={() => setAlbumModal(null)} />
+      <MoveTrackModal track={moveTrack} onClose={() => setMoveTrack(null)} />
     </div>
+  );
+}
+
+/* 앨범 헤더 관리 버튼 — 이름 변경 · 삭제 (컴팩트 아이콘) */
+function AlbumManageButtons({
+  onRename,
+  onDelete,
+}: {
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <>
+      <button
+        onClick={onRename}
+        aria-label="앨범 이름 변경"
+        className="flex h-7 w-7 items-center justify-center rounded-lg text-caption transition-colors hover:bg-surface-tertiary hover:text-body"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+      <button
+        onClick={onDelete}
+        aria-label="앨범 삭제"
+        className="flex h-7 w-7 items-center justify-center rounded-lg text-caption transition-colors hover:bg-red-50 hover:text-red-600"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </>
   );
 }

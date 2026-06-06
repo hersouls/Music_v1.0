@@ -276,13 +276,15 @@ function Shell({
 
 export default function AppShell({
   tracks,
+  albums,
   children,
 }: {
   tracks: Track[];
+  albums: string[];
   children: React.ReactNode;
 }) {
   return (
-    <TracksProvider tracks={tracks}>
+    <TracksProvider tracks={tracks} albums={albums}>
       <Shell tracks={tracks}>{children}</Shell>
     </TracksProvider>
   );

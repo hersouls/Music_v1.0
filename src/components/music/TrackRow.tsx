@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, Pause, Heart } from "lucide-react";
+import { Play, Pause, Heart, FolderInput } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime, formatSampleRate } from "@/lib/format";
 import { usePlayerStore } from "@/stores/usePlayerStore";
@@ -19,6 +19,7 @@ export default function TrackRow({
   contextIds,
   showPlayCount = false,
   showAlbum = true,
+  onMove,
 }: {
   track: Track;
   /** 표시용 순번 (1부터). 생략 시 숨김 */
@@ -28,6 +29,8 @@ export default function TrackRow({
   showPlayCount?: boolean;
   /** 앨범명 표시 — 앨범 그룹 내부에선 중복이라 끔 */
   showAlbum?: boolean;
+  /** 지정 시 "앨범으로 이동" 버튼 노출 (보관함 관리) */
+  onMove?: (track: Track) => void;
 }) {
   const currentId = usePlayerStore((s) => s.currentId);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -119,6 +122,19 @@ export default function TrackRow({
       <span className="shrink-0 text-xs tabular-nums text-caption">
         {formatTime(track.duration)}
       </span>
+
+      {onMove && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onMove(track);
+          }}
+          aria-label={`${track.title} 앨범으로 이동`}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-caption opacity-0 transition-colors hover:bg-surface-tertiary hover:text-bora-600 focus-visible:opacity-100 group-hover:opacity-100"
+        >
+          <FolderInput className="h-4 w-4" />
+        </button>
+      )}
 
       <button
         onClick={(e) => {

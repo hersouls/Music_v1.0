@@ -17,6 +17,8 @@ class PlayerEngine {
   private ctx: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private currentSrc = "";
+  /** 다음 메타데이터 로드 직후 적용할 시킹 위치 (곡 이동 후 위치 복원용) */
+  private pendingSeek: number | null = null;
   listeners: EngineListeners = {};
 
   private ensureAudio(): HTMLAudioElement | null {
@@ -25,7 +27,17 @@ class PlayerEngine {
     const a = new Audio();
     a.preload = "metadata";
     a.addEventListener("timeupdate", () => this.listeners.onTime?.(a.currentTime));
-    a.addEventListener("loadedmetadata", () => this.listeners.onDuration?.(a.duration || 0));
+    a.addEventListener("loadedmetadata", () => {
+      this.listeners.onDuration?.(a.duration || 0);
+      if (this.pendingSeek != null) {
+        try {
+          a.currentTime = this.pendingSeek;
+        } catch {
+          // 무시 — 처음부터 재생
+        }
+        this.pendingSeek = null;
+      }
+    });
     a.addEventListener("durationchange", () => this.listeners.onDuration?.(a.duration || 0));
     a.addEventListener("ended", () => this.listeners.onEnded?.());
     a.addEventListener("play", () => this.listeners.onPlayState?.(true));
@@ -60,11 +72,12 @@ class PlayerEngine {
     }
   }
 
-  load(src: string, autoplay: boolean) {
+  load(src: string, autoplay: boolean, resumeAt?: number) {
     const a = this.ensureAudio();
     if (!a) return;
     if (this.currentSrc !== src) {
       this.currentSrc = src;
+      this.pendingSeek = resumeAt ?? null;
       a.src = src;
       a.load();
     }
