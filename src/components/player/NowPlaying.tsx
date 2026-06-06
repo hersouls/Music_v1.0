@@ -17,9 +17,12 @@ import {
   ChevronDown,
   ListMusic,
   MicVocal,
+  Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime, formatSampleRate } from "@/lib/format";
+import { trackShareUrl, copyToClipboard } from "@/lib/track-url";
+import { useToastStore } from "@/stores/useToastStore";
 import { usePlayerStore } from "@/stores/usePlayerStore";
 import TrackArtwork from "@/components/music/TrackArtwork";
 import RangeSlider from "@/components/player/RangeSlider";
@@ -58,6 +61,24 @@ export default function NowPlaying() {
   const toggleFavorite = usePlayerStore((s) => s.toggleFavorite);
   const playFromQueue = usePlayerStore((s) => s.playFromQueue);
   const setNowPlayingOpen = usePlayerStore((s) => s.setNowPlayingOpen);
+  const addToast = useToastStore((s) => s.addToast);
+
+  async function shareTrack(t: { id: string; title: string }) {
+    const url = trackShareUrl(t.id);
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: `${t.title} — Moonwave Music`, url });
+        return;
+      } catch {
+        /* 취소/미지원 → 복사 폴백 */
+      }
+    }
+    if (await copyToClipboard(url)) {
+      addToast({ type: "success", message: "공유 링크를 복사했어요" });
+    } else {
+      addToast({ type: "error", message: "링크 복사에 실패했어요" });
+    }
+  }
 
   const track = useMemo(
     () => tracks.find((t) => t.id === currentId) ?? null,
@@ -136,6 +157,15 @@ export default function NowPlaying() {
                 >
                   <MicVocal className="h-5 w-5" />
                 </button>
+                {track.visibility === "public" && (
+                  <button
+                    onClick={() => void shareTrack(track)}
+                    aria-label="공유 링크 복사"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+                  >
+                    <Share2 className="h-5 w-5" />
+                  </button>
+                )}
                 <button
                   onClick={() => toggleFavorite(track.id)}
                   aria-label={isFav ? "즐겨찾기 해제" : "즐겨찾기 추가"}

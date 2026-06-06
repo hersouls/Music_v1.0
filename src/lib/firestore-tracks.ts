@@ -2,6 +2,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   query,
   serverTimestamp,
@@ -39,13 +40,12 @@ function toMillis(v: unknown): number {
   return Date.now();
 }
 
-/** Firestore 문서 → Track (src = 변환 mp3 우선) */
-export function trackFromDoc(snap: QueryDocumentSnapshot<DocumentData>): Track {
-  const d = snap.data();
+/** Firestore 문서 데이터 → Track (구독·단건 getDoc 공용, src = 변환 mp3 우선) */
+export function mapTrack(id: string, d: DocumentData): Track {
   const originalUrl = typeof d.originalUrl === "string" ? d.originalUrl : "";
   const streamUrl = typeof d.streamUrl === "string" ? d.streamUrl : null;
   return {
-    id: snap.id,
+    id,
     ownerUid: d.ownerUid ?? "",
     ownerName: d.ownerName ?? "",
     title: d.title ?? "",
@@ -71,6 +71,23 @@ export function trackFromDoc(snap: QueryDocumentSnapshot<DocumentData>): Track {
     createdAt: toMillis(d.createdAt),
     updatedAt: toMillis(d.updatedAt),
   };
+}
+
+/** Firestore 문서 스냅샷 → Track */
+export function trackFromDoc(snap: QueryDocumentSnapshot<DocumentData>): Track {
+  return mapTrack(snap.id, snap.data());
+}
+
+/** 단건 트랙 조회 — 공유 페이지용 (공개곡은 비로그인도 읽기 허용, 비공개는 소유자만) */
+export async function fetchTrack(id: string): Promise<Track | null> {
+  try {
+    const snap = await getDoc(trackRef(id));
+    if (!snap.exists()) return null;
+    return mapTrack(snap.id, snap.data());
+  } catch {
+    // 권한 거부(비공개·타인) 등 — 없음으로 처리
+    return null;
+  }
 }
 
 /** 보관함과 동일한 정렬 — 앨범명 → 곡 제목 (ko) */

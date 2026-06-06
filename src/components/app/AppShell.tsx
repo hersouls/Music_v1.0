@@ -324,6 +324,7 @@ function SplashScreen() {
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, uid, loading, firebaseReady } = useAuth();
+  const pathname = usePathname();
 
   /* 로그아웃 시 재생·청취 상태 정리 — 다른 계정 데이터와 섞이지 않게 */
   const prevUid = useRef<string | null>(null);
@@ -347,6 +348,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     }
     prevUid.current = uid;
   }, [uid]);
+
+  // 공개 곡 공유 페이지(/track/[id])는 로그인 없이 단독 렌더 — 자체 플레이어 보유
+  if (pathname?.startsWith("/track/")) return <>{children}</>;
 
   if (!firebaseReady) return <LoginScreen />; // 설정 안내 표시
   if (loading) return <SplashScreen />;
