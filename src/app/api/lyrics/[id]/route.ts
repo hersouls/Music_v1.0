@@ -46,7 +46,8 @@ export async function GET(
       // 다음 후보
     }
   }
-  return Response.json({ error: "가사가 없습니다" }, { status: 404 });
+  // 가사 없음 — 흔한 정상 케이스라 200(빈 결과)로 응답해 콘솔 404 노이즈 방지
+  return Response.json({ format: null, content: null });
 }
 
 export async function PUT(

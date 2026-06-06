@@ -6,11 +6,12 @@ import { useToastStore } from "@/stores/useToastStore";
 import { parseLyrics, activeLineIndex, type ParsedLyrics } from "@/lib/lrc";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/Modal";
+import LyricsSyncEditor from "@/components/player/LyricsSyncEditor";
 import type { Track } from "@/types/music";
 import {
   MicVocal,
   ClipboardPaste,
-  CloudDownload,
+  AudioLines,
   Loader2,
   Pencil,
   Trash2,
@@ -20,7 +21,7 @@ import {
    LyricsPanel — NowPlaying 가사 뷰
    .lrc 싱크 가사: 재생 위치 하이라이트 + 자동 스크롤 +
    줄 클릭 시킹. .txt 는 정적 표시.
-   등록: 붙여넣기(LRC 자동 감지) / Suno 가져오기(suno-cli).
+   등록: 붙여넣기(LRC 자동 감지) / 탭-싱크 에디터(곡 들으며 타이밍).
    ─────────────────────────────────────────── */
 
 type Status = "loading" | "none" | "loaded";
@@ -28,13 +29,12 @@ type Status = "loading" | "none" | "loaded";
 export default function LyricsPanel({ track }: { track: Track }) {
   const currentTime = usePlayerStore((s) => s.currentTime);
   const seek = usePlayerStore((s) => s.seek);
-  const addToast = useToastStore((s) => s.addToast);
 
   const [status, setStatus] = useState<Status>("loading");
   const [raw, setRaw] = useState("");
   const [parsed, setParsed] = useState<ParsedLyrics | null>(null);
   const [editOpen, setEditOpen] = useState(false);
-  const [fetching, setFetching] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const lineRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -44,13 +44,13 @@ export default function LyricsPanel({ track }: { track: Track }) {
     setStatus("loading");
     try {
       const res = await fetch(`/api/lyrics/${track.id}`);
-      if (!res.ok) {
+      const data = (await res.json()) as { content: string | null };
+      if (!res.ok || !data.content) {
         setStatus("none");
         setParsed(null);
         setRaw("");
         return;
       }
-      const data = (await res.json()) as { content: string };
       setRaw(data.content);
       setParsed(parseLyrics(data.content));
       setStatus("loaded");
@@ -85,26 +85,6 @@ export default function LyricsPanel({ track }: { track: Track }) {
     userScrollUntil.current = Date.now() + 3000;
   }
 
-  async function fetchFromSuno() {
-    if (fetching) return;
-    setFetching(true);
-    try {
-      const res = await fetch(`/api/lyrics/${track.id}/suno`, { method: "POST" });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || "가져오기에 실패했습니다");
-      addToast({ type: "success", message: "Suno 싱크 가사를 가져왔습니다" });
-      await load();
-    } catch (e) {
-      addToast({
-        type: "error",
-        message: e instanceof Error ? e.message : "가져오기에 실패했습니다",
-        duration: 5000,
-      });
-    } finally {
-      setFetching(false);
-    }
-  }
-
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
       {/* 컴팩트 곡 제목 */}
@@ -129,31 +109,24 @@ export default function LyricsPanel({ track }: { track: Track }) {
           <div>
             <p className="text-sm font-semibold text-white/90">아직 가사가 없습니다</p>
             <p className="mt-1 text-xs text-white/60">
-              LRC(타임스탬프) 가사를 붙여넣으면 싱크 하이라이트로 표시돼요
+              가사를 붙여넣고 곡을 들으며 타이밍을 찍으면 싱크 가사가 돼요
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <button
-              onClick={() => setEditOpen(true)}
+              onClick={() => setSyncOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-bora-700 shadow-lg shadow-black/10 transition-all hover:scale-[1.04] active:scale-95"
             >
-              <ClipboardPaste className="h-3.5 w-3.5" />
-              가사 붙여넣기
+              <AudioLines className="h-3.5 w-3.5" />
+              가사 싱크 만들기
             </button>
-            {track.sunoId && (
-              <button
-                onClick={fetchFromSuno}
-                disabled={fetching}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-4 py-2 text-xs font-bold text-white ring-1 ring-white/25 backdrop-blur-sm transition-colors hover:bg-white/25 disabled:opacity-50"
-              >
-                {fetching ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <CloudDownload className="h-3.5 w-3.5" />
-                )}
-                Suno에서 가져오기
-              </button>
-            )}
+            <button
+              onClick={() => setEditOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-4 py-2 text-xs font-bold text-white ring-1 ring-white/25 backdrop-blur-sm transition-colors hover:bg-white/25"
+            >
+              <ClipboardPaste className="h-3.5 w-3.5" />
+              그냥 붙여넣기
+            </button>
           </div>
         </div>
       )}
@@ -201,25 +174,18 @@ export default function LyricsPanel({ track }: { track: Track }) {
           {/* 가사 도구 */}
           <div className="flex shrink-0 items-center justify-center gap-2 pt-2">
             <button
+              onClick={() => setSyncOpen(true)}
+              className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white/75 ring-1 ring-white/15 transition-colors hover:bg-white/20 hover:text-white"
+            >
+              <AudioLines className="h-3 w-3" />
+              {parsed.synced ? "타이밍 다시" : "싱크 만들기"}
+            </button>
+            <button
               onClick={() => setEditOpen(true)}
               className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white/75 ring-1 ring-white/15 transition-colors hover:bg-white/20 hover:text-white"
             >
               <Pencil className="h-3 w-3" /> 편집
             </button>
-            {track.sunoId && (
-              <button
-                onClick={fetchFromSuno}
-                disabled={fetching}
-                className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white/75 ring-1 ring-white/15 transition-colors hover:bg-white/20 hover:text-white disabled:opacity-50"
-              >
-                {fetching ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <CloudDownload className="h-3 w-3" />
-                )}
-                Suno 다시 가져오기
-              </button>
-            )}
           </div>
         </>
       )}
@@ -234,11 +200,21 @@ export default function LyricsPanel({ track }: { track: Track }) {
           void load();
         }}
       />
+      <LyricsSyncEditor
+        open={syncOpen}
+        track={track}
+        initial={raw}
+        onClose={() => setSyncOpen(false)}
+        onSaved={() => {
+          setSyncOpen(false);
+          void load();
+        }}
+      />
     </div>
   );
 }
 
-/* ── 가사 붙여넣기/편집 모달 ── */
+/* ── 가사 붙여넣기/편집 모달 (타임스탬프 없는 단순 편집·삭제) ── */
 function LyricsEditModal({
   open,
   track,
@@ -349,7 +325,7 @@ function LyricsEditModal({
           onChange={(e) => setContent(e.target.value)}
           disabled={busy}
           rows={12}
-          placeholder={"가사를 붙여넣으세요.\n\n[00:12.50] 형식의 타임스탬프가 있으면\n자동으로 싱크 가사(LRC)로 저장됩니다."}
+          placeholder={"가사를 붙여넣으세요.\n\n[00:12.50] 형식의 타임스탬프가 있으면\n자동으로 싱크 가사(LRC)로 저장됩니다.\n\n타이밍을 직접 찍으려면 '싱크 만들기'를 쓰세요."}
           aria-label="가사 내용"
           className="w-full resize-y rounded-xl border border-strong bg-surface-primary px-4 py-3 text-sm leading-relaxed text-heading outline-none transition-colors placeholder:text-caption focus:border-bora-500 focus:ring-1 focus:ring-bora-500"
         />

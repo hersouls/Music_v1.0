@@ -83,3 +83,34 @@ export function activeLineIndex(
   }
   return active;
 }
+
+/** 초 → "[mm:ss.xx]" LRC 타임태그 */
+export function formatLrcTime(sec: number): string {
+  const t = Math.max(0, sec);
+  const m = Math.floor(t / 60);
+  const s = Math.floor(t % 60);
+  const cs = Math.round((t - Math.floor(t)) * 100);
+  // 반올림이 100 이 되면 초로 올림
+  const sFix = cs === 100 ? s + 1 : s;
+  const csFix = cs === 100 ? 0 : cs;
+  return `[${String(m).padStart(2, "0")}:${String(sFix).padStart(2, "0")}.${String(csFix).padStart(2, "0")}]`;
+}
+
+/** 탭-싱크 결과(텍스트 줄 + 타임스탬프) → LRC 문자열 */
+export function buildLrc(
+  lines: { text: string; time: number | null }[]
+): string {
+  return lines
+    .map((l) =>
+      l.time != null ? `${formatLrcTime(l.time)}${l.text}` : l.text
+    )
+    .join("\n");
+}
+
+/** 자유 텍스트 → 빈(타임스탬프 없는) 줄 배열. 빈 줄은 ♪ 간주 표기로 보존 */
+export function splitLyricLines(text: string): string[] {
+  return text
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((l) => l.trim());
+}
