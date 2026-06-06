@@ -16,8 +16,8 @@ import { fieldInputClass } from "@/components/ui/Form";
 import {
   Music2,
   Clock,
+  Disc3,
   HardDrive,
-  Timer,
   Play,
   Plus,
   Shuffle,
@@ -66,7 +66,9 @@ export default function LibraryPage() {
     const filtered = q
       ? tracks.filter(
           (t) =>
-            t.title.toLowerCase().includes(q) || t.fileName.toLowerCase().includes(q)
+            t.title.toLowerCase().includes(q) ||
+            t.fileName.toLowerCase().includes(q) ||
+            t.album.toLowerCase().includes(q)
         )
       : tracks;
     const sorted = [...filtered];
@@ -89,6 +91,31 @@ export default function LibraryPage() {
 
   const visibleIds = useMemo(() => visible.map((t) => t.id), [visible]);
 
+  /* 앨범 그룹 (검색 중이 아닐 때) — 이름순 앨범 + 마지막 "싱글"(루트 파일) */
+  const albumGroups = useMemo(() => {
+    const map = new Map<string, typeof visible>();
+    for (const t of visible) {
+      const list = map.get(t.album);
+      if (list) list.push(t);
+      else map.set(t.album, [t]);
+    }
+    const named = [...map.entries()]
+      .filter(([name]) => name !== "")
+      .sort((a, b) => a[0].localeCompare(b[0], "ko"))
+      .map(([name, list]) => ({ name, list }));
+    const root = map.get("");
+    return root ? [...named, { name: "", list: root }] : named;
+  }, [visible]);
+
+  const albumCount = useMemo(
+    () => new Set(tracks.map((t) => t.album).filter(Boolean)).size,
+    [tracks]
+  );
+  const singleCount = useMemo(
+    () => tracks.filter((t) => !t.album).length,
+    [tracks]
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -102,10 +129,19 @@ export default function LibraryPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="전체 트랙" value={tracks.length} unit="곡" icon={Music2} />
         <StatCard
+          label="앨범"
+          value={albumCount}
+          unit="개"
+          icon={Disc3}
+          iconClassName="text-amber-600 bg-amber-50"
+          sub={singleCount > 0 ? `싱글 ${singleCount}곡 별도` : "폴더 = 앨범"}
+        />
+        <StatCard
           label="총 재생 길이"
           value={formatDurationKo(totalSec)}
           icon={Clock}
           iconClassName="text-indigo-600 bg-indigo-50"
+          sub={`평균 ${formatTime(avgSec)}`}
         />
         <StatCard
           label="보관 용량"
@@ -113,12 +149,6 @@ export default function LibraryPage() {
           icon={HardDrive}
           iconClassName="text-emerald-600 bg-emerald-50"
           sub="원본 무손실 WAV"
-        />
-        <StatCard
-          label="평균 트랙 길이"
-          value={formatTime(avgSec)}
-          icon={Timer}
-          iconClassName="text-amber-600 bg-amber-50"
         />
       </div>
 
@@ -133,7 +163,7 @@ export default function LibraryPage() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="트랙 검색 (제목 · 파일명)"
+            placeholder="트랙 검색 (제목 · 앨범 · 파일명)"
             aria-label="트랙 검색"
             className={cn(fieldInputClass, "pl-10")}
           />
@@ -168,9 +198,10 @@ export default function LibraryPage() {
             action={{ label: "곡 등록", onClick: () => setUploadOpen(true) }}
           />
         )
-      ) : (
+      ) : query.trim() ? (
+        /* 검색 결과 — 앨범 무시 플랫 목록 */
         <SectionCard
-          title="트랙"
+          title="검색 결과"
           icon={ListMusic}
           description={`${visible.length}곡 · ${SORT_LABEL[sortKey]}`}
           action={
@@ -195,6 +226,50 @@ export default function LibraryPage() {
             ))}
           </ul>
         </SectionCard>
+      ) : (
+        /* 앨범 그룹 — 폴더별 SectionCard, 마지막에 싱글(루트 파일) */
+        albumGroups.map(({ name, list }) => {
+          const ids = list.map((t) => t.id);
+          const sec = list.reduce((s, t) => s + t.duration, 0);
+          return (
+            <SectionCard
+              key={name || "__singles__"}
+              title={name || "싱글"}
+              icon={name ? Disc3 : Music2}
+              description={`${list.length}곡 · ${formatDurationKo(sec)} · ${SORT_LABEL[sortKey]}`}
+              action={
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => playAll({ shuffle: false, ids })}
+                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-bora-600 transition-colors hover:bg-bora-50 hover:text-bora-700"
+                  >
+                    <Play className="h-3.5 w-3.5" fill="currentColor" /> 재생
+                  </button>
+                  <button
+                    onClick={() => playAll({ shuffle: true, ids })}
+                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-bora-600 transition-colors hover:bg-bora-50 hover:text-bora-700"
+                  >
+                    <Shuffle className="h-3.5 w-3.5" /> 셔플
+                  </button>
+                </div>
+              }
+              bodyClassName="p-0"
+            >
+              <ul className="divide-y divide-surface-2">
+                {list.map((t, i) => (
+                  <TrackRow
+                    key={t.id}
+                    track={t}
+                    index={i + 1}
+                    contextIds={ids}
+                    showPlayCount
+                    showAlbum={false}
+                  />
+                ))}
+              </ul>
+            </SectionCard>
+          );
+        })
       )}
 
       <UploadTracksModal open={uploadOpen} onClose={() => setUploadOpen(false)} />

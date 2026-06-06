@@ -18,6 +18,7 @@ export default function TrackRow({
   index,
   contextIds,
   showPlayCount = false,
+  showAlbum = true,
 }: {
   track: Track;
   /** 표시용 순번 (1부터). 생략 시 숨김 */
@@ -25,6 +26,8 @@ export default function TrackRow({
   /** 이 목록을 재생 큐 컨텍스트로 사용 */
   contextIds?: string[];
   showPlayCount?: boolean;
+  /** 앨범명 표시 — 앨범 그룹 내부에선 중복이라 끔 */
+  showAlbum?: boolean;
 }) {
   const currentId = usePlayerStore((s) => s.currentId);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -101,6 +104,7 @@ export default function TrackRow({
         </p>
         <p className="truncate text-xs text-caption">
           {track.artist}
+          {showAlbum && track.album && ` · ${track.album}`}
           {track.sampleRate > 0 &&
             ` · WAV ${formatSampleRate(track.sampleRate)} ${track.bitsPerSample}bit`}
         </p>

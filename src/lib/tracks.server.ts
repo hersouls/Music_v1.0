@@ -87,47 +87,93 @@ async function readWavMeta(filePath: string): Promise<WavMeta | null> {
   }
 }
 
-/* 모듈 캐시 — 디렉토리 변경(파일명·크기·mtime) 시에만 WAV 헤더 재파싱 */
+/* 모듈 캐시 — 디렉토리 변경(경로·크기·mtime) 시에만 WAV 헤더 재파싱 */
 let cache: { key: string; tracks: Track[] } | null = null;
 
-function trackId(fileName: string): string {
-  return crypto.createHash("md5").update(fileName).digest("hex").slice(0, 12);
+/** id = 상대경로 해시 — 루트 파일은 relPath === fileName 이라 기존 id 와 동일(청취 데이터 보존) */
+function trackId(relPath: string): string {
+  return crypto.createHash("md5").update(relPath).digest("hex").slice(0, 12);
+}
+
+interface ScanEntry {
+  relPath: string;
+  fileName: string;
+  album: string;
+  size: number;
+  mtimeMs: number;
+}
+
+/** .Music 1단계 스캔 — 루트 오디오 파일 + 하위 폴더(=앨범) 안의 오디오 파일 */
+async function scanEntries(): Promise<ScanEntry[]> {
+  const out: ScanEntry[] = [];
+  const dirents = await fs.readdir(MUSIC_DIR, { withFileTypes: true });
+  for (const d of dirents) {
+    if (d.name.startsWith(".")) continue;
+    if (d.isFile()) {
+      if (!AUDIO_EXTS[path.extname(d.name).toLowerCase()]) continue;
+      const st = await fs.stat(path.join(MUSIC_DIR, d.name));
+      out.push({
+        relPath: d.name,
+        fileName: d.name,
+        album: "",
+        size: st.size,
+        mtimeMs: st.mtimeMs,
+      });
+    } else if (d.isDirectory()) {
+      // 폴더명 = 앨범명 (1단계 깊이만 — 더 깊은 중첩은 무시)
+      let subNames: string[] = [];
+      try {
+        subNames = await fs.readdir(path.join(MUSIC_DIR, d.name));
+      } catch {
+        continue;
+      }
+      for (const f of subNames) {
+        if (!AUDIO_EXTS[path.extname(f).toLowerCase()]) continue;
+        const full = path.join(MUSIC_DIR, d.name, f);
+        const st = await fs.stat(full);
+        if (!st.isFile()) continue;
+        out.push({
+          relPath: `${d.name}/${f}`,
+          fileName: f,
+          album: d.name,
+          size: st.size,
+          mtimeMs: st.mtimeMs,
+        });
+      }
+    }
+  }
+  return out;
 }
 
 export async function getTracks(): Promise<Track[]> {
-  let entries: { name: string; size: number; mtimeMs: number }[] = [];
+  let entries: ScanEntry[] = [];
   try {
-    const names = await fs.readdir(MUSIC_DIR);
-    const stats = await Promise.all(
-      names
-        .filter((n) => AUDIO_EXTS[path.extname(n).toLowerCase()])
-        .map(async (name) => {
-          const st = await fs.stat(path.join(MUSIC_DIR, name));
-          return { name, size: st.size, mtimeMs: st.mtimeMs };
-        })
-    );
-    entries = stats;
+    entries = await scanEntries();
   } catch {
     return []; // .Music 폴더 없음 — 빈 보관함
   }
 
   const key = entries
-    .map((e) => `${e.name}:${e.size}:${Math.round(e.mtimeMs)}`)
+    .map((e) => `${e.relPath}:${e.size}:${Math.round(e.mtimeMs)}`)
     .sort()
     .join("|");
   if (cache && cache.key === key) return cache.tracks;
 
   const tracks = await Promise.all(
-    entries.map(async ({ name, size }): Promise<Track> => {
-      const ext = path.extname(name).toLowerCase();
+    entries.map(async ({ relPath, fileName, album, size }): Promise<Track> => {
+      const ext = path.extname(fileName).toLowerCase();
       const isWav = ext === ".wav";
-      const meta = isWav ? await readWavMeta(path.join(MUSIC_DIR, name)) : null;
-      const id = trackId(name);
+      const meta = isWav
+        ? await readWavMeta(path.join(MUSIC_DIR, relPath))
+        : null;
+      const id = trackId(relPath);
       return {
         id,
-        title: path.basename(name, path.extname(name)).trim(),
+        title: path.basename(fileName, path.extname(fileName)).trim(),
         artist: ARTIST_NAME,
-        fileName: name,
+        fileName,
+        relPath,
+        album,
         src: `/api/stream/${id}`,
         duration: meta?.duration ?? 0,
         sizeBytes: size,
@@ -138,7 +184,12 @@ export async function getTracks(): Promise<Track[]> {
     })
   );
 
-  tracks.sort((a, b) => a.title.localeCompare(b.title, "ko"));
+  // 앨범명 → 곡 제목 순 (루트 "" 가 먼저 오지만 그룹 순서는 UI 가 결정)
+  tracks.sort(
+    (a, b) =>
+      a.album.localeCompare(b.album, "ko") ||
+      a.title.localeCompare(b.title, "ko")
+  );
   cache = { key, tracks };
   return tracks;
 }
@@ -151,8 +202,11 @@ export async function resolveTrackFile(
   const track = tracks.find((t) => t.id === id);
   if (!track) return null;
   const ext = path.extname(track.fileName).toLowerCase();
+  // 심층 방어 — 해석된 경로가 .Music 밖이면 거부 (relPath 는 스캔 산출이라 정상 경로만 존재)
+  const filePath = path.resolve(MUSIC_DIR, track.relPath);
+  if (!filePath.startsWith(path.resolve(MUSIC_DIR) + path.sep)) return null;
   return {
-    filePath: path.join(MUSIC_DIR, track.fileName),
+    filePath,
     size: track.sizeBytes,
     contentType: AUDIO_EXTS[ext] ?? "application/octet-stream",
   };

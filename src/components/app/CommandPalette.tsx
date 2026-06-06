@@ -110,8 +110,8 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
         key: `track-${t.id}`,
         kind: "track",
         title: t.title,
-        subtitle: `${t.artist} · ${formatTime(t.duration)}`,
-        haystack: hay(t.title, t.fileName, t.artist),
+        subtitle: `${t.artist}${t.album ? ` · ${t.album}` : ""} · ${formatTime(t.duration)}`,
+        haystack: hay(t.title, t.fileName, t.album, t.artist),
         run: () => playTrack(t.id),
       });
     }

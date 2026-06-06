@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTracks } from "@/contexts/TracksContext";
 import { useToastStore } from "@/stores/useToastStore";
 import { formatBytes } from "@/lib/format";
 import { uid, cn } from "@/lib/utils";
 import Modal from "@/components/ui/Modal";
+import { Field, fieldInputClass } from "@/components/ui/Form";
 import {
   Upload,
   FileAudio,
@@ -49,11 +51,26 @@ export default function UploadTracksModal({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const tracks = useTracks();
   const addToast = useToastStore((s) => s.addToast);
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<PendingFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  /* 앨범 선택 — 기존 폴더 목록 + 새 앨범 만들기 ("" = 싱글/루트) */
+  const NEW_ALBUM = "__new__";
+  const [albumChoice, setAlbumChoice] = useState("");
+  const [newAlbum, setNewAlbum] = useState("");
+  const existingAlbums = useMemo(
+    () =>
+      [...new Set(tracks.map((t) => t.album).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, "ko")
+      ),
+    [tracks]
+  );
+  const effectiveAlbum =
+    albumChoice === NEW_ALBUM ? newAlbum.trim() : albumChoice;
 
   const readyCount = items.filter((i) => i.status === "ready").length;
   const doneCount = items.filter((i) => i.status === "done").length;
@@ -97,6 +114,7 @@ export default function UploadTracksModal({
       try {
         const fd = new FormData();
         fd.append("file", item.file);
+        if (effectiveAlbum) fd.append("album", effectiveAlbum);
         const res = await fetch("/api/upload", { method: "POST", body: fd });
         const data = (await res.json()) as { fileName?: string; error?: string };
         if (!res.ok) throw new Error(data.error || "업로드에 실패했습니다");
@@ -120,6 +138,8 @@ export default function UploadTracksModal({
     if (uploading) return; // 업로드 도중 닫기 방지
     setItems([]);
     setDragOver(false);
+    setAlbumChoice("");
+    setNewAlbum("");
     onClose();
   }
 
@@ -140,7 +160,11 @@ export default function UploadTracksModal({
           {!allFinished && (
             <button
               onClick={uploadAll}
-              disabled={uploading || readyCount === 0}
+              disabled={
+                uploading ||
+                readyCount === 0 ||
+                (albumChoice === NEW_ALBUM && !newAlbum.trim())
+              }
               className="flex items-center gap-2 rounded-xl bg-bora-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-bora-700 disabled:opacity-50"
             >
               {uploading ? (
@@ -160,6 +184,46 @@ export default function UploadTracksModal({
       }
     >
       <div className="space-y-4">
+        {/* 앨범 선택 — 폴더 = 앨범 */}
+        <Field
+          label="앨범"
+          hint={
+            albumChoice === ""
+              ? "싱글은 .Music 바로 아래에, 앨범은 같은 이름의 폴더에 저장돼요"
+              : undefined
+          }
+        >
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <select
+              value={albumChoice}
+              onChange={(e) => setAlbumChoice(e.target.value)}
+              disabled={uploading || allFinished}
+              aria-label="앨범 선택"
+              className={cn(fieldInputClass, "sm:flex-1")}
+            >
+              <option value="">싱글 (앨범 없음)</option>
+              {existingAlbums.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+              <option value={NEW_ALBUM}>＋ 새 앨범 만들기</option>
+            </select>
+            {albumChoice === NEW_ALBUM && (
+              <input
+                type="text"
+                value={newAlbum}
+                onChange={(e) => setNewAlbum(e.target.value)}
+                disabled={uploading || allFinished}
+                placeholder="새 앨범 이름"
+                aria-label="새 앨범 이름"
+                autoFocus
+                className={cn(fieldInputClass, "sm:flex-1")}
+              />
+            )}
+          </div>
+        </Field>
+
         {/* 드롭 존 */}
         <button
           type="button"

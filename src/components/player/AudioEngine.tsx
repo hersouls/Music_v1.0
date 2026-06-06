@@ -58,7 +58,7 @@ export default function AudioEngine() {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: track.title,
       artist: ARTIST_NAME,
-      album: ALBUM_NAME,
+      album: track.album || ALBUM_NAME,
       artwork: art ? [{ src: art, sizes: "512x512", type: "image/png" }] : [],
     });
   }, [track]);

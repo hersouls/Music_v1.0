@@ -149,7 +149,10 @@ export default function NowPlaying() {
                 <h2 className="truncate text-2xl font-bold tracking-tight sm:text-3xl">
                   {track.title}
                 </h2>
-                <p className="mt-1.5 text-sm text-white/70">{track.artist}</p>
+                <p className="mt-1.5 truncate text-sm text-white/70">
+                  {track.artist}
+                  {track.album && ` — ${track.album}`}
+                </p>
                 {track.sampleRate > 0 && (
                   <div className="mt-3 flex items-center justify-center gap-1.5">
                     {["WAV", formatSampleRate(track.sampleRate), `${track.bitsPerSample}bit`].map(

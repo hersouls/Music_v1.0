@@ -3,8 +3,9 @@ import path from "node:path";
 
 /* ───────────────────────────────────────────
    곡 등록 — 업로드 파일을 .Music 폴더에 저장
-   파일 1개씩 multipart/form-data 로 받는다 (필드명 "file").
-   보안: 파일명 정제(경로 탈출 차단) + 확장자 허용목록 +
+   파일 1개씩 multipart/form-data 로 받는다 (필드명 "file",
+   선택 필드 "album" — 지정 시 .Music/<앨범>/ 하위 폴더에 저장).
+   보안: 파일명·앨범명 정제(경로 탈출 차단) + 확장자 허용목록 +
         WAV 매직바이트 검증 + 중복 파일명은 " (2)" 접미사로 원본 보존.
    ─────────────────────────────────────────── */
 
@@ -23,6 +24,14 @@ function sanitizeName(raw: string): string | null {
     .trim();
   if (!base || base.startsWith(".")) return null;
   return base;
+}
+
+/** 앨범 폴더명 정제 — 파일명 규칙 + Windows 금지(말미 마침표·공백) 제거 */
+function sanitizeAlbum(raw: string): string | null {
+  const cleaned = sanitizeName(raw);
+  if (!cleaned) return null;
+  const folder = cleaned.replace(/[. ]+$/, "").trim();
+  return folder || null;
 }
 
 export async function POST(req: Request) {
@@ -69,25 +78,40 @@ export async function POST(req: Request) {
     return Response.json({ error: "올바른 WAV 파일이 아닙니다" }, { status: 415 });
   }
 
-  await fs.mkdir(MUSIC_DIR, { recursive: true });
+  // 앨범 지정 시 .Music/<앨범>/ 하위 폴더에 저장
+  const albumRaw = form.get("album");
+  let album = "";
+  if (typeof albumRaw === "string" && albumRaw.trim()) {
+    const folder = sanitizeAlbum(albumRaw);
+    if (!folder) {
+      return Response.json(
+        { error: "사용할 수 없는 앨범 이름입니다" },
+        { status: 400 }
+      );
+    }
+    album = folder;
+  }
+
+  const destDir = album ? path.join(MUSIC_DIR, album) : MUSIC_DIR;
+  await fs.mkdir(destDir, { recursive: true });
 
   // 중복 파일명 — 덮어쓰지 않고 " (2)", " (3)" … 접미사
   const stem = path.basename(name, ext);
   let finalName = name;
   for (let i = 2; ; i++) {
     try {
-      await fs.access(path.join(MUSIC_DIR, finalName));
+      await fs.access(path.join(destDir, finalName));
       finalName = `${stem} (${i})${ext}`;
     } catch {
       break;
     }
   }
 
-  const target = path.join(MUSIC_DIR, finalName);
-  if (!target.startsWith(MUSIC_DIR + path.sep)) {
+  const target = path.resolve(destDir, finalName);
+  if (!target.startsWith(path.resolve(MUSIC_DIR) + path.sep)) {
     return Response.json({ error: "잘못된 경로입니다" }, { status: 400 });
   }
 
   await fs.writeFile(target, buf);
-  return Response.json({ ok: true, fileName: finalName });
+  return Response.json({ ok: true, fileName: finalName, album });
 }
