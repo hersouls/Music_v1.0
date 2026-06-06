@@ -1,0 +1,34 @@
+/* BORA Foundation — Badge Utility Classes */
+
+.badge-foundation {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--typo-caption-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--typo-caption-line-height);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.badge-accent {
+  color: var(--accent-primary-text);
+  background-color: var(--accent-primary-bg);
+}
+
+.badge-neutral {
+  color: var(--text-secondary);
+  background-color: var(--surface-secondary);
+}
+
+.badge-glass {
+  color: var(--text-secondary);
+  background-color: var(--surface-glass-light);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.badge-overlay {
+  color: var(--text-secondary);
+  background-color: var(--surface-glass-strong);
+  box-shadow: inset 0 0 0 1px var(--ring-subtle);
+}

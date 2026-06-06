@@ -1,0 +1,7 @@
+/* BORA Foundation — Transition Tokens */
+:root {
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 300ms ease;
+  --transition-slower: 500ms ease-in-out;
+}

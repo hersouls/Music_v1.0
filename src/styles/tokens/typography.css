@@ -1,0 +1,53 @@
+/* BORA Foundation — Typography Scale */
+:root {
+  /* Font Weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  /* Line Heights */
+  --line-height-tight: 1.25;
+  --line-height-snug: 1.375;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+
+  /* Display (hero headings) */
+  --typo-display-size: 3rem;
+  --typo-display-weight: 800;
+  --typo-display-line-height: 1.1;
+  --typo-display-tracking: -0.02em;
+
+  /* Heading 1 (section headings) */
+  --typo-heading1-size: 1.875rem;
+  --typo-heading1-size-sm: 2.25rem;
+  --typo-heading1-weight: 700;
+  --typo-heading1-line-height: 1.25;
+
+  /* Heading 2 (card titles) */
+  --typo-heading2-size: 1.25rem;
+  --typo-heading2-weight: 700;
+  --typo-heading2-line-height: 1.4;
+
+  /* Body 1 (primary text) */
+  --typo-body1-size: 1rem;
+  --typo-body1-weight: 400;
+  --typo-body1-line-height: 1.625;
+
+  /* Body 2 (secondary text) */
+  --typo-body2-size: 0.875rem;
+  --typo-body2-weight: 400;
+  --typo-body2-line-height: 1.625;
+
+  /* Label (section labels, badges) */
+  --typo-label-size: 0.75rem;
+  --typo-label-weight: 500;
+  --typo-label-line-height: 1.5;
+  --typo-label-tracking: 0.1em;
+
+  /* Caption (footer, meta text) */
+  --typo-caption-size: 0.625rem;
+  --typo-caption-weight: 400;
+  --typo-caption-line-height: 1.4;
+}

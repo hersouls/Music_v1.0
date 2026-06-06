@@ -1,0 +1,17 @@
+/* BORA Foundation — Divider Utilities */
+.divider {
+  width: 100%;
+  height: 1px;
+  background-color: var(--border-default);
+}
+
+.divider-strong {
+  width: 100%;
+  height: 1px;
+  background-color: var(--border-strong);
+}
+
+.divider-gradient {
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--color-bora-300), transparent);
+}

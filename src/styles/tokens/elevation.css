@@ -1,0 +1,22 @@
+/* BORA Foundation — Shadow System (light-only) */
+:root {
+  /* Shadows */
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.05), inset 0 0 0 1px rgba(17, 24, 39, 0.05);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.08), inset 0 0 0 1px rgba(17, 24, 39, 0.05);
+  --shadow-3: 0 8px 24px rgba(0, 0, 0, 0.08), inset 0 0 0 1px rgba(17, 24, 39, 0.08);
+  --shadow-4: 0 12px 32px rgba(0, 0, 0, 0.12);
+
+  /* Elevation Z-Index Layers */
+  --elevation-0: 0;       /* Base / Background */
+  --elevation-1: 1;       /* Content surface */
+  --elevation-2: 10;      /* Raised elements (cards, sections) */
+  --elevation-3: 30;      /* Overlay (dropdowns, modals) */
+  --elevation-4: 50;      /* Top-most (header, toast) */
+
+  /* Dim Overlay */
+  --dim-overlay: rgba(0, 0, 0, 0.3);
+
+  /* Bora Accent Glow */
+  --shadow-bora-glow: 0 4px 12px rgba(124, 58, 237, 0.15);
+  --shadow-bora-glow-strong: 0 8px 24px rgba(124, 58, 237, 0.2);
+}

@@ -1,0 +1,109 @@
+/* BORA Foundation — Button Utility Classes */
+
+/* Base Reset */
+.btn-foundation {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: var(--btn-font-weight);
+  padding-left: var(--btn-padding-x);
+  padding-right: var(--btn-padding-x);
+  border-radius: var(--btn-radius);
+  transition: background-color 200ms ease, box-shadow 300ms ease, transform 150ms ease;
+  white-space: nowrap;
+}
+
+.btn-foundation:active {
+  transform: scale(0.97);
+}
+
+.btn-foundation:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-foundation:focus-visible {
+  outline: 2px solid var(--ring-focus);
+  outline-offset: 2px;
+}
+
+/* Size Variants */
+.btn-lg {
+  height: var(--btn-height-lg);
+  font-size: var(--btn-font-size-lg);
+}
+
+.btn-md {
+  height: var(--btn-height-md);
+  font-size: var(--btn-font-size-md);
+}
+
+.btn-sm {
+  height: var(--btn-height-sm);
+  font-size: var(--btn-font-size-sm);
+  padding-left: var(--btn-padding-x-sm);
+  padding-right: var(--btn-padding-x-sm);
+}
+
+/* Filled Primary (bora purple) */
+.btn-filled-primary {
+  background-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  box-shadow: var(--shadow-1);
+}
+
+.btn-filled-primary:hover {
+  background-color: var(--btn-primary-bg-hover);
+  box-shadow: var(--shadow-bora-glow);
+}
+
+/* Filled Secondary (white with border) */
+.btn-filled-secondary {
+  background-color: var(--btn-secondary-bg);
+  color: var(--btn-secondary-text);
+  border: 1px solid var(--btn-secondary-border);
+}
+
+.btn-filled-secondary:hover {
+  background-color: var(--btn-secondary-bg-hover);
+  border-color: var(--btn-secondary-border-hover);
+}
+
+/* Ghost */
+.btn-ghost {
+  background-color: var(--btn-ghost-bg);
+  color: var(--btn-ghost-text);
+}
+
+.btn-ghost:hover {
+  background-color: var(--btn-ghost-bg-hover);
+}
+
+/* Pill Shape */
+.btn-pill {
+  border-radius: var(--btn-radius-pill);
+}
+
+/* Icon Button */
+.btn-icon-foundation {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--btn-radius);
+  transition: background-color 200ms ease;
+  padding: var(--btn-icon-padding);
+  width: var(--btn-icon-touch);
+  height: var(--btn-icon-touch);
+}
+
+.btn-icon-foundation:focus-visible {
+  outline: 2px solid var(--ring-focus);
+  outline-offset: 2px;
+}

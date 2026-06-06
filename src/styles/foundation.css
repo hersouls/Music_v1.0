@@ -1,0 +1,67 @@
+/* ===============================================
+ * BORA v1.0 — Foundation Design System
+ * Tokens + Utility Imports (light-only, no dark mode)
+ * =============================================== */
+
+
+/* ===============================================
+ * DESIGN TOKENS
+ * =============================================== */
+
+/* 01_Foundation */
+@import './tokens/spacing.css';
+@import './tokens/radius.css';
+@import './tokens/elevation.css';
+@import './tokens/typography.css';
+
+/* 02_Semantic Colors */
+@import './tokens/semantic-colors.css';
+
+/* 03_Button */
+@import './tokens/button.css';
+
+/* 04_Card */
+@import './tokens/card.css';
+
+/* 05_Input */
+@import './tokens/input.css';
+
+/* 06_Navigation */
+@import './tokens/navigation.css';
+
+/* 07_Transition */
+@import './tokens/transition.css';
+
+
+/* ===============================================
+ * UTILITY CLASSES
+ * =============================================== */
+
+/* 01_Foundation */
+@import './utilities/typography.css';
+@import './utilities/elevation.css';
+@import './utilities/divider.css';
+
+/* 02_Semantic Colors */
+@import './utilities/semantic-colors.css';
+
+/* 03_Button */
+@import './utilities/button.css';
+
+/* 04_Card */
+@import './utilities/card.css';
+
+/* 05_Glass */
+@import './utilities/glass.css';
+
+/* 06_Section */
+@import './utilities/section.css';
+
+/* 07_Badge */
+@import './utilities/badge.css';
+
+/* 08_Icon Container */
+@import './utilities/icon-container.css';
+
+/* 09_Input */
+@import './utilities/input.css';

@@ -1,0 +1,24 @@
+/* BORA Foundation — Card Tokens */
+:root {
+  /* Card Container */
+  --card-radius: 16px;
+  --card-radius-lg: 24px;
+  --card-padding: 24px;
+  --card-padding-sm: 20px;
+  --card-padding-lg: 32px;
+  --card-border-width: 1px;
+
+  /* Card Colors */
+  --card-bg-primary: var(--surface-primary);
+  --card-bg-secondary: var(--surface-secondary);
+  --card-border-color: var(--border-default);
+  --card-hover-border-color: var(--border-strong);
+
+  /* Card Shadows */
+  --card-shadow: var(--shadow-1);
+  --card-shadow-hover: var(--shadow-2);
+
+  /* Card Grid */
+  --card-grid-gap: 20px;
+  --card-grid-gap-sm: 12px;
+}

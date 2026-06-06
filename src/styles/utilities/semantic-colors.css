@@ -1,0 +1,46 @@
+/* BORA Foundation — Semantic Color Utility Classes */
+
+/* Surface */
+.bg-surface-primary { background-color: var(--surface-primary); }
+.bg-surface-secondary { background-color: var(--surface-secondary); }
+.bg-surface-tertiary { background-color: var(--surface-tertiary); }
+.bg-surface-elevated { background-color: var(--surface-elevated); }
+
+/* Text */
+.text-heading { color: var(--text-primary); }
+.text-body { color: var(--text-secondary); }
+.text-caption { color: var(--text-tertiary); }
+.text-disabled { color: var(--text-muted); }
+
+/* Border */
+.border-base { border-color: var(--border-default); }
+.border-strong { border-color: var(--border-strong); }
+
+/* Interactive */
+.hover-surface:hover { background-color: var(--hover-bg); }
+
+/* Accent */
+.bg-accent-primary { background-color: var(--accent-primary-bg); }
+.text-accent-primary { color: var(--accent-primary-text); }
+.text-accent-primary-alt { color: var(--accent-primary-text-alt); }
+
+/* Status */
+.bg-status-success { background-color: var(--status-success-bg); }
+.bg-status-warning { background-color: var(--status-warning-bg); }
+.bg-status-danger { background-color: var(--status-danger-bg); }
+.text-status-success { color: var(--status-success-text); }
+.text-status-danger { color: var(--status-danger-text); }
+
+/* Glass / Muted */
+.bg-surface-glass { background-color: var(--surface-glass); }
+.bg-surface-muted { background-color: var(--surface-muted); }
+
+/* Ring */
+.ring-subtle {
+  box-shadow: inset 0 0 0 1px var(--ring-subtle);
+}
+
+.ring-focus-visible:focus-visible {
+  outline: 2px solid var(--ring-focus);
+  outline-offset: 2px;
+}

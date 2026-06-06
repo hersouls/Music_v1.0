@@ -1,0 +1,18 @@
+/* BORA Foundation — Glass Utility Classes */
+.glass-foundation {
+  background: var(--surface-primary);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-1);
+}
+
+.glass-strong-foundation {
+  background: var(--surface-glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-2);
+}
+
+.glass-hover-foundation:hover {
+  box-shadow: var(--shadow-3);
+}

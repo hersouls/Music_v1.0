@@ -1,0 +1,58 @@
+/* BORA Foundation — Semantic Color Tokens (light-only) */
+:root {
+  /* Surface (backgrounds) */
+  --surface-primary: #ffffff;
+  --surface-secondary: #f9fafb;
+  --surface-tertiary: #f3f4f6;
+  --surface-elevated: rgba(255, 255, 255, 0.95);
+  --surface-sunken: #f3f4f6;
+
+  /* Text */
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --text-muted: #d1d5db;
+  --text-inverse: #ffffff;
+
+  /* Border */
+  --border-default: #f3f4f6;
+  --border-strong: #e5e7eb;
+  --border-subtle: #f9fafb;
+
+  /* Interactive */
+  --hover-bg: #f9fafb;
+  --active-bg: #f3f4f6;
+
+  /* Primary Accent (bora purple) */
+  --accent-primary-bg: var(--color-bora-50);
+  --accent-primary-text: var(--color-bora-700);
+  --accent-primary-text-alt: var(--color-bora-600);
+  --accent-primary-text-soft: var(--color-bora-500);
+
+  /* Status Colors */
+  --status-success-bg: rgba(16, 185, 129, 0.1);
+  --status-success-text: #059669;
+  --status-warning-bg: rgba(245, 158, 11, 0.1);
+  --status-warning-text: #d97706;
+  --status-danger-bg: rgba(239, 68, 68, 0.1);
+  --status-danger-text: #dc2626;
+
+  /* Glass / Muted */
+  --surface-glass: rgba(255, 255, 255, 0.95);
+  --surface-glass-light: rgba(255, 255, 255, 0.8);
+  --surface-glass-strong: rgba(255, 255, 255, 0.9);
+  --surface-muted: #e5e7eb;
+
+  /* Additional Text */
+  --text-label: #4b5563;
+  --text-strong: #374151;
+  --border-input: #d1d5db;
+
+  /* Ring / Focus */
+  --ring-focus: var(--color-bora-500);
+  --ring-subtle: rgba(17, 24, 39, 0.05);
+  --ring-focus-light: rgba(168, 85, 247, 0.2);
+
+  /* Interactive */
+  --hover-subtle: rgba(0, 0, 0, 0.04);
+}

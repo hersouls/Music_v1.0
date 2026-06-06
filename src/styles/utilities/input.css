@@ -1,0 +1,33 @@
+/* BORA Foundation — Input Utility Classes */
+
+.input-foundation {
+  width: 100%;
+  height: var(--input-height);
+  background-color: var(--input-bg);
+  border: var(--input-border-width) solid var(--input-border);
+  border-radius: var(--input-radius);
+  padding-left: var(--input-padding-x);
+  padding-right: var(--input-padding-x);
+  padding-top: var(--input-padding-y);
+  padding-bottom: var(--input-padding-y);
+  font-size: var(--input-font-size);
+  color: var(--input-text);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.input-foundation::placeholder {
+  color: var(--input-placeholder);
+}
+
+.input-foundation:focus {
+  outline: none;
+  border-color: var(--input-border-focus);
+  box-shadow: 0 0 0 3px var(--input-ring-focus);
+}
+
+.input-label {
+  display: block;
+  font-size: var(--input-label-size);
+  color: var(--input-label-color);
+  margin-bottom: var(--input-label-margin-bottom);
+}

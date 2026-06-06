@@ -1,0 +1,22 @@
+/* BORA Foundation — Navigation Tokens */
+:root {
+  /* Header Bar */
+  --header-height: 64px;
+  --header-height-home: 56px;
+  --header-z-index: 50;
+  --header-bg-scrolled: var(--surface-elevated);
+
+  /* Nav Link */
+  --nav-link-padding-x: 16px;
+  --nav-link-padding-y: 8px;
+  --nav-link-radius: 8px;
+  --nav-link-font-size: 14px;
+  --nav-link-font-weight: 500;
+  --nav-link-active-bg: var(--color-bora-50);
+  --nav-link-active-ring: var(--color-bora-200);
+
+  /* Max Content Width */
+  --content-max-width: 80rem;
+  --content-max-width-narrow: 48rem;
+  --content-max-width-mid: 64rem;
+}

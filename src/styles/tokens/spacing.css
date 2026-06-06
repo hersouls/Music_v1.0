@@ -1,0 +1,16 @@
+/* BORA Foundation — Spacing Scale (8px grid base) */
+:root {
+  --spacing-0: 0px;
+  --spacing-0-5: 2px;     /* micro */
+  --spacing-1: 4px;       /* tight */
+  --spacing-2: 8px;       /* base unit */
+  --spacing-3: 12px;      /* 1.5x base */
+  --spacing-4: 16px;      /* 2x base */
+  --spacing-5: 20px;      /* 2.5x base */
+  --spacing-6: 24px;      /* 3x base */
+  --spacing-8: 32px;      /* 4x base */
+  --spacing-10: 40px;     /* 5x base */
+  --spacing-12: 48px;     /* 6x base */
+  --spacing-16: 64px;     /* 8x base */
+  --spacing-20: 80px;     /* 10x base */
+}

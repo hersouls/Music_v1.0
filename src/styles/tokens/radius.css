@@ -1,0 +1,11 @@
+/* BORA Foundation — Border Radius Scale */
+:root {
+  --radius-none: 0px;
+  --radius-sm: 6px;
+  --radius-md: 8px;        /* rounded-lg */
+  --radius-lg: 12px;       /* rounded-xl */
+  --radius-xl: 16px;       /* rounded-2xl */
+  --radius-2xl: 20px;      /* glass default — matches --radius-glass */
+  --radius-3xl: 24px;      /* rounded-3xl */
+  --radius-full: 9999px;   /* circle / pill */
+}

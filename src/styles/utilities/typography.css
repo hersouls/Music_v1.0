@@ -1,0 +1,50 @@
+/* BORA Foundation — Typography Utility Classes */
+.typo-display {
+  font-size: var(--typo-display-size);
+  font-weight: var(--typo-display-weight);
+  line-height: var(--typo-display-line-height);
+  letter-spacing: var(--typo-display-tracking);
+}
+
+.typo-heading1 {
+  font-size: var(--typo-heading1-size);
+  font-weight: var(--typo-heading1-weight);
+  line-height: var(--typo-heading1-line-height);
+}
+
+@media (min-width: 640px) {
+  .typo-heading1 {
+    font-size: var(--typo-heading1-size-sm);
+  }
+}
+
+.typo-heading2 {
+  font-size: var(--typo-heading2-size);
+  font-weight: var(--typo-heading2-weight);
+  line-height: var(--typo-heading2-line-height);
+}
+
+.typo-body1 {
+  font-size: var(--typo-body1-size);
+  font-weight: var(--typo-body1-weight);
+  line-height: var(--typo-body1-line-height);
+}
+
+.typo-body2 {
+  font-size: var(--typo-body2-size);
+  font-weight: var(--typo-body2-weight);
+  line-height: var(--typo-body2-line-height);
+}
+
+.typo-label {
+  font-size: var(--typo-label-size);
+  font-weight: var(--typo-label-weight);
+  line-height: var(--typo-label-line-height);
+  letter-spacing: var(--typo-label-tracking);
+}
+
+.typo-caption {
+  font-size: var(--typo-caption-size);
+  font-weight: var(--typo-caption-weight);
+  line-height: var(--typo-caption-line-height);
+}

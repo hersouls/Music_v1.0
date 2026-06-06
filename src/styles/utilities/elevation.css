@@ -1,0 +1,36 @@
+/* BORA Foundation — Elevation Utility Classes */
+.elevation-0 {
+  z-index: var(--elevation-0);
+}
+
+.elevation-1 {
+  z-index: var(--elevation-1);
+  box-shadow: var(--shadow-1);
+}
+
+.elevation-2 {
+  z-index: var(--elevation-2);
+  box-shadow: var(--shadow-2);
+}
+
+.elevation-3 {
+  z-index: var(--elevation-3);
+  box-shadow: var(--shadow-3);
+}
+
+.elevation-4 {
+  z-index: var(--elevation-4);
+  box-shadow: var(--shadow-4);
+}
+
+.dim-overlay {
+  background-color: var(--dim-overlay);
+}
+
+.shadow-bora-glow {
+  box-shadow: var(--shadow-bora-glow);
+}
+
+.shadow-bora-glow-strong {
+  box-shadow: var(--shadow-bora-glow-strong);
+}

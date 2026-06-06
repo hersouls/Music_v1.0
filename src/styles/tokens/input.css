@@ -1,0 +1,25 @@
+/* BORA Foundation — Input Tokens */
+:root {
+  /* Input Dimensions */
+  --input-height: 48px;
+  --input-radius: 12px;
+  --input-padding-x: 16px;
+  --input-padding-y: 12px;
+  --input-border-width: 1px;
+
+  /* Input Colors */
+  --input-bg: var(--surface-primary);
+  --input-border: var(--border-input);
+  --input-border-focus: var(--color-bora-500);
+  --input-ring-focus: var(--ring-focus-light);
+  --input-text: var(--text-primary);
+  --input-placeholder: var(--text-tertiary);
+
+  /* Input Typography */
+  --input-font-size: 14px;
+
+  /* Label */
+  --input-label-size: 12px;
+  --input-label-color: var(--text-label);
+  --input-label-margin-bottom: 6px;
+}
