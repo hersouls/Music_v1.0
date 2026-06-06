@@ -19,12 +19,14 @@ import AlbumNameModal, {
   type AlbumNameModalState,
 } from "@/components/app/AlbumNameModal";
 import MoveTrackModal from "@/components/app/MoveTrackModal";
+import CreateAlbumModal from "@/components/app/CreateAlbumModal";
 import { fieldInputClass } from "@/components/ui/Form";
 import type { Track } from "@/types/music";
 import {
   Music2,
   Clock,
   Disc3,
+  FolderPlus,
   HardDrive,
   Loader2,
   Pencil,
@@ -61,18 +63,20 @@ export default function LibraryPage() {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("title");
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [createAlbumOpen, setCreateAlbumOpen] = useState(false);
   const [albumModal, setAlbumModal] = useState<AlbumNameModalState | null>(null);
   const [moveTrack, setMoveTrack] = useState<Track | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // ⌘K "곡 등록" 등 딥링크 — /library?add=1 이면 등록 모달 자동 오픈.
+  // ⌘K "곡 등록"·"새 앨범" 등 딥링크 — /library?add=1 / ?album=new 이면 모달 자동 오픈.
   // searchParams 구독이라 이미 /library 에 있을 때 push 돼도 반응한다 (마운트 1회 아님).
   useEffect(() => {
-    if (searchParams.get("add") === "1") {
-      setUploadOpen(true);
-      router.replace("/library", { scroll: false });
-    }
+    const add = searchParams.get("add") === "1";
+    const album = searchParams.get("album") === "new";
+    if (add) setUploadOpen(true);
+    if (album) setCreateAlbumOpen(true);
+    if (add || album) router.replace("/library", { scroll: false });
   }, [searchParams, router]);
 
   const totalSec = useMemo(() => tracks.reduce((s, t) => s + t.duration, 0), [tracks]);
@@ -187,7 +191,7 @@ export default function LibraryPage() {
           unit="개"
           icon={Disc3}
           iconClassName="text-amber-600 bg-amber-50"
-          sub={singleCount > 0 ? `싱글 ${singleCount}곡 별도` : "곡 등록에서 앨범 생성"}
+          sub={singleCount > 0 ? `싱글 ${singleCount}곡 별도` : "새 앨범으로 곡을 묶어 정리"}
         />
         <StatCard
           label="총 재생 길이"
@@ -233,6 +237,13 @@ export default function LibraryPage() {
             </option>
           ))}
         </select>
+        <button
+          onClick={() => setCreateAlbumOpen(true)}
+          className="flex shrink-0 items-center justify-center gap-2 rounded-xl border border-strong bg-surface-primary px-4 py-3 text-sm font-medium text-body transition-colors hover:bg-surface-secondary"
+        >
+          <FolderPlus className="h-4 w-4 text-bora-600" aria-hidden="true" />
+          새 앨범
+        </button>
       </div>
 
       {/* 트랙 목록 */}
@@ -338,6 +349,10 @@ export default function LibraryPage() {
       )}
 
       <UploadTracksModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
+      <CreateAlbumModal
+        open={createAlbumOpen}
+        onClose={() => setCreateAlbumOpen(false)}
+      />
       <AlbumNameModal state={albumModal} onClose={() => setAlbumModal(null)} />
       <MoveTrackModal track={moveTrack} onClose={() => setMoveTrack(null)} />
     </div>

@@ -21,6 +21,7 @@ import {
   Music2,
   Play,
   Plus,
+  FolderPlus,
   Shuffle,
   ArrowRight,
   CornerDownLeft,
@@ -103,6 +104,14 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       subtitle: "오디오 파일을 보관함에 추가",
       haystack: hay("곡 등록", "업로드", "추가", "upload", "add"),
       run: () => router.push("/library?add=1"),
+    });
+    out.push({
+      key: "action-create-album",
+      kind: "action",
+      title: "새 앨범 만들기",
+      subtitle: "보관함의 곡을 골라 앨범으로 묶기",
+      haystack: hay("새 앨범 만들기", "앨범 생성", "앨범 추가", "album", "create"),
+      run: () => router.push("/library?album=new"),
     });
 
     for (const t of tracks) {
@@ -199,7 +208,9 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
                                 ? Shuffle
                                 : r.key === "action-add-tracks"
                                   ? Plus
-                                  : Icon;
+                                  : r.key === "action-create-album"
+                                    ? FolderPlus
+                                    : Icon;
                             return (
                               <ComboboxOption key={r.key} value={r} as={Fragment}>
                                 {({ active }) => (

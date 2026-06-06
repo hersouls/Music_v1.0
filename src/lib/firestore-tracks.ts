@@ -122,6 +122,23 @@ export async function moveTrack(id: string, album: string): Promise<void> {
   });
 }
 
+/** 새 앨범 만들기·곡 일괄 담기 — 선택한 곡들의 album 필드를 batch 갱신 (id 불변 = 청취 데이터 유지) */
+export async function setTracksAlbum(
+  ids: string[],
+  album: string
+): Promise<number> {
+  if (!ids.length) return 0;
+  const batch = writeBatch(getDb());
+  for (const id of ids) {
+    batch.update(trackRef(id), {
+      album: album.trim(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+  await batch.commit();
+  return ids.length;
+}
+
 /** 앨범 이름 변경 — 해당 앨범의 내 곡을 일괄 갱신 */
 export async function renameAlbum(
   myTracks: Track[],
