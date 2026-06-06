@@ -54,12 +54,15 @@ export default function AudioEngine() {
 
   useEffect(() => {
     if (!track || typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
-    const art = artworkDataUrl(track.id, 512);
+    // AI 생성 커버 우선, 없으면 결정적 캔버스 아트
+    const art = track.coverUrl ?? artworkDataUrl(track.id, 512);
     navigator.mediaSession.metadata = new MediaMetadata({
       title: track.title,
       artist: track.artist || ARTIST_NAME,
       album: track.album || ALBUM_NAME,
-      artwork: art ? [{ src: art, sizes: "512x512", type: "image/png" }] : [],
+      artwork: art
+        ? [{ src: art, sizes: track.coverUrl ? "1024x1024" : "512x512", type: "image/png" }]
+        : [],
     });
   }, [track]);
 

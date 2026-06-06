@@ -1,12 +1,14 @@
 "use client";
 
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { artworkSpec } from "@/lib/artwork";
 
 /* ───────────────────────────────────────────
-   TrackArtwork — 결정적 SVG 앨범아트 (의존성 0)
-   variant 0: 바이닐 링 / 1: 웨이브 / 2: 오브 글로우
+   TrackArtwork — 앨범아트
+   src(AI 생성 커버)가 있으면 이미지, 없거나 로드 실패 시
+   결정적 SVG 아트 폴백 (variant 0: 바이닐 / 1: 웨이브 / 2: 오브)
    ─────────────────────────────────────────── */
 
 /** 결정적 사인 웨이브 path (seed 로 위상 변형) */
@@ -22,14 +24,35 @@ function wavePath(seed: number, amp: number, baseY: number): string {
 
 export default function TrackArtwork({
   trackId,
+  src,
   className,
 }: {
   trackId: string;
+  /** AI 생성 커버 URL — 없으면 SVG 아트 */
+  src?: string | null;
   className?: string;
 }) {
   const uid = useId();
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => setImgFailed(false), [src]);
+
   const spec = artworkSpec(trackId);
   const gradId = `art-${uid}`;
+
+  if (src && !imgFailed) {
+    return (
+      <span className={cn("relative block h-full w-full", className)}>
+        <Image
+          src={src}
+          alt=""
+          fill
+          unoptimized
+          className="object-cover"
+          onError={() => setImgFailed(true)}
+        />
+      </span>
+    );
+  }
 
   return (
     <svg

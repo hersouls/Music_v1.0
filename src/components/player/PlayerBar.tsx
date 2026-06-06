@@ -78,7 +78,7 @@ export default function PlayerBar() {
           aria-label="지금 재생 화면 열기"
         >
           <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl shadow-sm sm:h-12 sm:w-12">
-            <TrackArtwork trackId={track.id} />
+            <TrackArtwork trackId={track.id} src={track.coverUrl} />
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-heading">

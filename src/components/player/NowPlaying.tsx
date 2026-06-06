@@ -170,7 +170,7 @@ export default function NowPlaying() {
                   !isPlaying && "vinyl-spin--paused"
                 )}
               >
-                <TrackArtwork trackId={track.id} />
+                <TrackArtwork trackId={track.id} src={track.coverUrl} />
                 {/* 바이닐 센터 홀 */}
                 <span className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/30 ring-4 ring-white/25 backdrop-blur-sm" />
                 <span className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/90" />
@@ -309,7 +309,7 @@ export default function NowPlaying() {
                         className="flex shrink-0 items-center gap-2 rounded-xl bg-white/10 py-1.5 pl-1.5 pr-3 ring-1 ring-white/15 backdrop-blur-sm transition-colors hover:bg-white/20"
                       >
                         <span className="block h-7 w-7 overflow-hidden rounded-lg">
-                          <TrackArtwork trackId={t.id} />
+                          <TrackArtwork trackId={t.id} src={t.coverUrl} />
                         </span>
                         <span className="max-w-36 truncate text-xs font-medium text-white/90">
                           {t.title}

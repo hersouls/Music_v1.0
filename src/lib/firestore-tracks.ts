@@ -12,7 +12,12 @@ import {
   type QueryDocumentSnapshot,
   type Timestamp,
 } from "firebase/firestore";
-import { deleteObject, ref } from "firebase/storage";
+import {
+  deleteObject,
+  getDownloadURL,
+  ref,
+  uploadBytes,
+} from "firebase/storage";
 import { getDb, getFirebaseStorage } from "@/lib/firebase";
 import { looksLikeLrc } from "@/lib/lrc";
 import type { Track, Visibility } from "@/types/music";
@@ -61,6 +66,8 @@ export function trackFromDoc(snap: QueryDocumentSnapshot<DocumentData>): Track {
     lyrics: typeof d.lyrics === "string" && d.lyrics ? d.lyrics : null,
     lyricsFormat:
       d.lyricsFormat === "lrc" || d.lyricsFormat === "txt" ? d.lyricsFormat : null,
+    coverUrl: typeof d.coverUrl === "string" && d.coverUrl ? d.coverUrl : null,
+    coverPath: typeof d.coverPath === "string" && d.coverPath ? d.coverPath : null,
     createdAt: toMillis(d.createdAt),
     updatedAt: toMillis(d.updatedAt),
   };
@@ -112,6 +119,11 @@ export function subscribePublicTracks(
 
 function trackRef(id: string) {
   return doc(getDb(), TRACKS_COLLECTION, id);
+}
+
+/** 새 트랙 문서 id 사전 생성 — 업로드 전에 id 를 고정해 재시도 시 같은 경로 재사용 */
+export function newTrackId(): string {
+  return doc(collection(getDb(), TRACKS_COLLECTION)).id;
 }
 
 /** 곡을 앨범↔싱글로 이동 — album 필드만 갱신 (id 불변) */
@@ -166,15 +178,71 @@ export async function deleteAlbum(
   return renameAlbum(myTracks, name, "");
 }
 
-/** 곡 삭제 — Firestore 문서 + Storage 원본·스트림 객체 */
+/** 곡 삭제 — Firestore 문서 + Storage 원본·스트림·커버 객체 */
 export async function deleteTrack(track: Track): Promise<void> {
   await deleteDoc(trackRef(track.id));
   const storage = getFirebaseStorage();
   // 문서가 사라지면 UI 에서는 이미 제거됨 — 객체 삭제 실패(이미 없음 등)는 무시
-  const paths = [track.storagePath, track.streamPath].filter(
+  const paths = [track.storagePath, track.streamPath, track.coverPath].filter(
     (p): p is string => !!p
   );
   await Promise.allSettled(paths.map((p) => deleteObject(ref(storage, p))));
+}
+
+/** AI 커버를 Storage 에만 업로드 (문서 갱신은 호출자가 메타와 함께) — 소유자 전용.
+    경로가 결정적이라 재업로드는 멱등(덮어쓰기). */
+export async function uploadTrackCover(
+  uid: string,
+  trackId: string,
+  image: Blob
+): Promise<{ coverUrl: string; coverPath: string }> {
+  const storage = getFirebaseStorage();
+  const coverPath = `tracks/${uid}/${trackId}/cover.png`;
+  const coverRef = ref(storage, coverPath);
+  await uploadBytes(coverRef, image, { contentType: image.type || "image/png" });
+  const coverUrl = await getDownloadURL(coverRef);
+  return { coverUrl, coverPath };
+}
+
+/** AI 생성 커버 저장 — Storage 업로드 + 문서 갱신 (소유자 전용) */
+export async function saveTrackCover(
+  uid: string,
+  trackId: string,
+  image: Blob
+): Promise<string> {
+  const { coverUrl, coverPath } = await uploadTrackCover(uid, trackId, image);
+  await updateDoc(trackRef(trackId), {
+    coverUrl,
+    coverPath,
+    updatedAt: serverTimestamp(),
+  });
+  return coverUrl;
+}
+
+/** 위자드 완료 — 한 곡의 가사·앨범·공개·커버를 단일 updateDoc 으로 원자 반영.
+    부분 실패로 곡이 어중간한 상태(공개인데 private 잔류 등)로 남지 않게 한다. */
+export async function finalizeTrack(
+  trackId: string,
+  patch: {
+    lyrics?: string | null;
+    lyricsFormat?: "lrc" | "txt" | null;
+    album?: string;
+    visibility?: Visibility;
+    coverUrl?: string;
+    coverPath?: string;
+  }
+): Promise<void> {
+  const data: Record<string, unknown> = { updatedAt: serverTimestamp() };
+  if (patch.lyrics !== undefined) {
+    data.lyrics = patch.lyrics;
+    data.lyricsFormat =
+      patch.lyricsFormat ?? (patch.lyrics ? (looksLikeLrc(patch.lyrics) ? "lrc" : "txt") : null);
+  }
+  if (patch.album !== undefined) data.album = patch.album.trim();
+  if (patch.visibility !== undefined) data.visibility = patch.visibility;
+  if (patch.coverUrl !== undefined) data.coverUrl = patch.coverUrl;
+  if (patch.coverPath !== undefined) data.coverPath = patch.coverPath;
+  await updateDoc(trackRef(trackId), data);
 }
 
 /** 가사 저장 — LRC 자동 감지 (타임태그 2줄 이상) */

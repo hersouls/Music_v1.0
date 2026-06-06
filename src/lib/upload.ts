@@ -210,13 +210,22 @@ export interface UploadInput {
   uid: string;
   /** 업로더 표시명 — artist 기본값 */
   ownerName: string;
+  /** 재시도 시 동일 문서 id 재사용 — 고아 Storage 객체 방지 (없으면 신규 생성) */
+  trackId?: string;
 }
 
-/** 1곡 업로드 — 완료 시 Firestore 문서 id 반환 */
+export interface UploadResult {
+  id: string;
+  originalUrl: string;
+  streamUrl: string | null;
+  duration: number;
+}
+
+/** 1곡 업로드 — 완료 시 문서 id + 재생 URL (위자드 후속 단계용) 반환 */
 export async function uploadTrack(
-  { file, album, visibility, uid, ownerName }: UploadInput,
+  { file, album, visibility, uid, ownerName, trackId }: UploadInput,
   { onProgress }: UploadCallbacks = {}
-): Promise<string> {
+): Promise<UploadResult> {
   const ext = extOf(file.name);
   const contentType = AUDIO_EXTS[ext];
   if (!contentType) throw new Error("지원하지 않는 형식입니다");
@@ -228,7 +237,10 @@ export async function uploadTrack(
 
   const db = getDb();
   const storage = getFirebaseStorage();
-  const docRef = doc(collection(db, TRACKS_COLLECTION));
+  // 재시도 시 같은 id/경로 재사용 → 직전 시도의 객체를 덮어써 고아를 만들지 않음
+  const docRef = trackId
+    ? doc(db, TRACKS_COLLECTION, trackId)
+    : doc(collection(db, TRACKS_COLLECTION));
   const baseDir = `tracks/${uid}/${docRef.id}`;
   const storagePath = `${baseDir}/original${ext}`;
 
@@ -293,9 +305,16 @@ export async function uploadTrack(
     bitsPerSample: wavMeta?.bitsPerSample ?? 0,
     lyrics: null,
     lyricsFormat: null,
+    coverUrl: null,
+    coverPath: null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
   onProgress?.("finalize", 1);
-  return docRef.id;
+  return {
+    id: docRef.id,
+    originalUrl,
+    streamUrl: streamUrl && streamPath ? streamUrl : null,
+    duration,
+  };
 }

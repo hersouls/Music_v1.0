@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePlayerStore } from "@/stores/usePlayerStore";
 import { useToastStore } from "@/stores/useToastStore";
 import { saveLyrics } from "@/lib/firestore-tracks";
-import { getFirebaseAuth } from "@/lib/firebase";
+import { requestLyricsAlign } from "@/lib/ai-client";
 import { buildLrc, splitLyricLines, formatLrcTime, parseLyrics } from "@/lib/lrc";
 import { formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -104,30 +104,14 @@ export default function LyricsSyncEditor({
     if (aiBusy || !text.trim()) return;
     setAiBusy(true);
     try {
-      const idToken = await getFirebaseAuth().currentUser?.getIdToken();
-      if (!idToken) throw new Error("로그인이 필요합니다");
-      const res = await fetch("/api/lyrics/align", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          lyrics: text,
-          // 스트리밍 mp3 (작음·Whisper 25MB 한도 안전) 우선, 없으면 원본
-          audioUrl: track.streamUrl || track.originalUrl,
-          duration: track.duration,
-        }),
+      const lines = await requestLyricsAlign({
+        lyrics: text,
+        // 스트리밍 mp3 (작음·Whisper 25MB 한도 안전) 우선, 없으면 원본
+        audioUrl: track.streamUrl || track.originalUrl,
+        duration: track.duration,
       });
-      const data = (await res.json()) as {
-        lines?: EditLine[];
-        error?: string;
-      };
-      if (!res.ok || !data.lines?.length) {
-        throw new Error(data.error || "AI 싱크에 실패했습니다");
-      }
-      setLines(data.lines);
-      setCursor(data.lines.length); // 전부 채워진 상태로 검토
+      setLines(lines);
+      setCursor(lines.length); // 전부 채워진 상태로 검토
       setPhase("sync");
       if (currentId !== track.id) playTrack(track.id);
       addToast({

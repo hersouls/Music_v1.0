@@ -19,9 +19,12 @@ service cloud.firestore {
     match /tracks/{trackId} {
       allow read: if resource.data.visibility == 'public'
                   || isOwner(resource.data.ownerUid);
-      // 생성 시 ownerUid 는 본인이어야 함
+      // 생성 시 ownerUid 는 본인 + visibility 는 허용값 + Storage 경로는 본인 소유 경로로 바인딩
       allow create: if isSignedIn()
-                    && request.resource.data.ownerUid == request.auth.uid;
+                    && request.resource.data.ownerUid == request.auth.uid
+                    && request.resource.data.visibility in ['public', 'private']
+                    && request.resource.data.storagePath is string
+                    && request.resource.data.storagePath.matches('tracks/' + request.auth.uid + '/.*');
       allow update, delete: if isOwner(resource.data.ownerUid);
     }
 

@@ -267,7 +267,7 @@ export default function HomePage() {
                   className="group flex min-w-0 items-center gap-2.5 rounded-2xl border border-strong bg-surface-primary px-3 py-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-bora-200 hover:shadow-md"
                 >
                   <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl">
-                    <TrackArtwork trackId={t.id} />
+                    <TrackArtwork trackId={t.id} src={t.coverUrl} />
                     <span className="absolute inset-0 flex items-center justify-center bg-black/35 text-white opacity-0 transition-opacity group-hover:opacity-100">
                       <Play className="h-4 w-4 translate-x-px" fill="currentColor" />
                     </span>
@@ -366,7 +366,7 @@ export default function HomePage() {
                       }}
                     >
                       <span className="h-9 w-9 shrink-0 overflow-hidden rounded-lg">
-                        <TrackArtwork trackId={track.id} />
+                        <TrackArtwork trackId={track.id} src={track.coverUrl} />
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-heading">

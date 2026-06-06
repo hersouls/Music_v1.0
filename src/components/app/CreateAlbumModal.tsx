@@ -298,7 +298,7 @@ function CoverMosaic({ tracks }: { tracks: Track[] }) {
                 arts.length === 3 && i === 0 && "row-span-2"
               )}
             >
-              <TrackArtwork trackId={t.id} />
+              <TrackArtwork trackId={t.id} src={t.coverUrl} />
             </motion.div>
           ))}
         </div>
@@ -356,7 +356,7 @@ function PickerRow({
         </span>
 
         <span className="h-9 w-9 shrink-0 overflow-hidden rounded-lg shadow-sm">
-          <TrackArtwork trackId={track.id} />
+          <TrackArtwork trackId={track.id} src={track.coverUrl} />
         </span>
 
         <span className="min-w-0 flex-1">

@@ -20,6 +20,7 @@ import AlbumNameModal, {
 } from "@/components/app/AlbumNameModal";
 import MoveTrackModal from "@/components/app/MoveTrackModal";
 import CreateAlbumModal from "@/components/app/CreateAlbumModal";
+import TrackWizard from "@/components/app/TrackWizard";
 import { fieldInputClass } from "@/components/ui/Form";
 import type { Track } from "@/types/music";
 import {
@@ -62,6 +63,7 @@ export default function LibraryPage() {
   const addToast = useToastStore((s) => s.addToast);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("title");
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [createAlbumOpen, setCreateAlbumOpen] = useState(false);
   const [albumModal, setAlbumModal] = useState<AlbumNameModalState | null>(null);
@@ -69,12 +71,12 @@ export default function LibraryPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // ⌘K "곡 등록"·"새 앨범" 등 딥링크 — /library?add=1 / ?album=new 이면 모달 자동 오픈.
+  // ⌘K "곡 등록"·"새 앨범" 등 딥링크 — /library?add=1(위자드) / ?album=new 자동 오픈.
   // searchParams 구독이라 이미 /library 에 있을 때 push 돼도 반응한다 (마운트 1회 아님).
   useEffect(() => {
     const add = searchParams.get("add") === "1";
     const album = searchParams.get("album") === "new";
-    if (add) setUploadOpen(true);
+    if (add) setWizardOpen(true);
     if (album) setCreateAlbumOpen(true);
     if (add || album) router.replace("/library", { scroll: false });
   }, [searchParams, router]);
@@ -178,7 +180,7 @@ export default function LibraryPage() {
       <PageHeader
         title="보관함"
         description={`내 트랙 ${tracks.length}곡 · ${formatDurationKo(totalSec)}`}
-        action={{ label: "곡 등록", icon: Plus, onClick: () => setUploadOpen(true) }}
+        action={{ label: "곡 등록", icon: Plus, onClick: () => setWizardOpen(true) }}
         secondaryAction={{ label: "전체 재생", icon: Play, onClick: () => playAll({ shuffle: false }) }}
       />
 
@@ -263,7 +265,7 @@ export default function LibraryPage() {
             icon={ListMusic}
             title="보관함이 비어 있습니다"
             description="곡을 등록하면 클라우드에 보관되고 어디서든 들을 수 있어요."
-            action={{ label: "곡 등록", onClick: () => setUploadOpen(true) }}
+            action={{ label: "곡 등록", onClick: () => setWizardOpen(true) }}
           />
         )
       ) : query.trim() ? (
@@ -348,6 +350,14 @@ export default function LibraryPage() {
         })
       )}
 
+      <TrackWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onSwitchToBulk={() => {
+          setWizardOpen(false);
+          setUploadOpen(true);
+        }}
+      />
       <UploadTracksModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
       <CreateAlbumModal
         open={createAlbumOpen}

@@ -140,7 +140,7 @@ export default function MoveTrackModal({
           {/* 이동할 곡 */}
           <div className="flex items-center gap-3 rounded-2xl border border-strong bg-surface-secondary/60 px-4 py-3">
             <span className="h-10 w-10 shrink-0 overflow-hidden rounded-xl">
-              <TrackArtwork trackId={track.id} />
+              <TrackArtwork trackId={track.id} src={track.coverUrl} />
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-heading">

@@ -269,7 +269,7 @@ export default function StatsPage() {
                     }}
                   >
                     <span className="h-8 w-8 shrink-0 overflow-hidden rounded-lg">
-                      <TrackArtwork trackId={p.id} />
+                      <TrackArtwork trackId={p.id} src={p.track.coverUrl} />
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-heading">

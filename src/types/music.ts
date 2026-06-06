@@ -41,6 +41,10 @@ export interface Track {
   /** 가사 (LRC/일반 텍스트) — 문서 필드로 보관 */
   lyrics: string | null;
   lyricsFormat: "lrc" | "txt" | null;
+  /** AI 생성 커버 이미지 URL (없으면 결정적 SVG 아트 폴백) */
+  coverUrl: string | null;
+  /** Storage 경로: tracks/{ownerUid}/{trackId}/cover.png */
+  coverPath: string | null;
   /** epoch ms (serverTimestamp → millis) */
   createdAt: number;
   updatedAt: number;

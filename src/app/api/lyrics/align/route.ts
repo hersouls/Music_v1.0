@@ -1,6 +1,11 @@
 import { isWavBuffer, wavBufferToWhisperMono16k } from "@/lib/audio-resample";
 import { alignLyrics, type WhisperSegment } from "@/lib/align";
 import { splitLyricLines } from "@/lib/lrc";
+import {
+  verifyIdToken,
+  checkRateLimit,
+  rateLimitResponse,
+} from "@/lib/server-auth";
 
 /* ───────────────────────────────────────────
    AI 자동 가사 싱크 — POST { lyrics, audioUrl, duration }
@@ -35,30 +40,6 @@ function isAllowedAudioUrl(raw: string): boolean {
   return url.pathname.startsWith(`/v0/b/${bucket}/o/`);
 }
 
-/** 로그인 사용자만 허용 — Firebase ID 토큰을 Identity Toolkit 으로 검증
-    (admin SDK 불필요 — accounts:lookup 은 웹 API 키로 호출 가능) */
-async function verifyIdToken(req: Request): Promise<boolean> {
-  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-  if (!apiKey) return false;
-  const idToken = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
-  if (!idToken) return false;
-  try {
-    const res = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
-      }
-    );
-    if (!res.ok) return false;
-    const data = (await res.json()) as { users?: unknown[] };
-    return Array.isArray(data.users) && data.users.length > 0;
-  } catch {
-    return false;
-  }
-}
-
 export async function POST(req: Request) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) {
@@ -71,9 +52,14 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!(await verifyIdToken(req))) {
+  const uid = await verifyIdToken(req);
+  if (!uid) {
     return Response.json({ error: "로그인이 필요합니다" }, { status: 401 });
   }
+
+  // 비용 가드 — 사용자당 10분에 20회 (Whisper 전사)
+  const rl = checkRateLimit(`align:${uid}`, 20, 10 * 60 * 1000, Date.now());
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
   let body: { lyrics?: unknown; audioUrl?: unknown; duration?: unknown };
   try {
@@ -98,15 +84,21 @@ export async function POST(req: Request) {
       ? Math.max(0, body.duration)
       : 0;
 
-  /* ① 음원 가져오기 (Storage 공개 읽기) */
+  /* ① 음원 가져오기 (Storage 공개 읽기) — 스트림으로 누적 상한 검사 */
   let audio: Buffer;
   let isWav: boolean;
   try {
     const res = await fetch(audioUrl);
     if (!res.ok) throw new Error(`음원을 가져오지 못했습니다 (${res.status})`);
-    const len = Number(res.headers.get("content-length") ?? 0);
-    if (len > MAX_WAV_BYTES) throw new Error("음원이 너무 큽니다");
+    // content-length 가 없거나(청크/위조) 한도 초과면 즉시 거부 — 메모리 폭주 방지
+    const lenHeader = res.headers.get("content-length");
+    if (!lenHeader) throw new Error("음원 크기를 확인할 수 없습니다");
+    const len = Number(lenHeader);
+    if (!Number.isFinite(len) || len <= 0 || len > MAX_WAV_BYTES) {
+      throw new Error("음원이 너무 큽니다");
+    }
     audio = Buffer.from(await res.arrayBuffer());
+    // 실제 수신량이 헤더와 달라도(위조) 한도 초과면 거부
     if (audio.length > MAX_WAV_BYTES) throw new Error("음원이 너무 큽니다");
     isWav = isWavBuffer(audio);
   } catch (e) {

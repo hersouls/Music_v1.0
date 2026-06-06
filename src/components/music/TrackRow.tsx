@@ -83,7 +83,7 @@ export default function TrackRow({
 
       {/* 아트워크 + 호버 재생 오버레이 */}
       <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl shadow-sm">
-        <TrackArtwork trackId={track.id} />
+        <TrackArtwork trackId={track.id} src={track.coverUrl} />
         <span
           className={cn(
             "absolute inset-0 flex items-center justify-center bg-black/35 text-white transition-opacity",
