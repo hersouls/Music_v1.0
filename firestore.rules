@@ -1,0 +1,33 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════
+// Moonwave Music — Firestore 보안 규칙
+//  - 공개 곡(public)은 누구나 열람, 비공개·쓰기는 소유자만
+//  - per-user 데이터(즐겨찾기·통계)는 본인만
+// ═══════════════════════════════════════════
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // 곡 메타데이터
+    match /tracks/{trackId} {
+      allow read: if resource.data.visibility == 'public'
+                  || isOwner(resource.data.ownerUid);
+      // 생성 시 ownerUid 는 본인이어야 함
+      allow create: if isSignedIn()
+                    && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.ownerUid);
+    }
+
+    // per-user 영역 (프로필·즐겨찾기·재생이력·통계)
+    match /users/{uid}/{document=**} {
+      allow read, write: if isOwner(uid);
+    }
+  }
+}

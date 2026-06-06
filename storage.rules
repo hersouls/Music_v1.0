@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════
+// Moonwave Music — Storage 보안 규칙
+//  음원: tracks/{ownerUid}/{trackId}/{file}
+//  - 쓰기: 본인 폴더 + 1GB 이하 + 오디오 타입
+//  - 읽기: 공개 (1차 버전은 공개 위주 — 비공개 음원 강결합은 후속)
+// ⚠️ 비공개곡 음원 완전 보호가 필요하면 signed URL 방식으로 전환.
+// ═══════════════════════════════════════════
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /tracks/{ownerUid}/{trackId}/{file} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.auth.uid == ownerUid
+                   && request.resource.size < 1024 * 1024 * 1024
+                   && (request.resource.contentType.matches('audio/.*')
+                       || file.matches('.*\\.(wav|mp3|m4a|aac|ogg|flac)'));
+      allow delete: if request.auth != null && request.auth.uid == ownerUid;
+    }
+  }
+}
