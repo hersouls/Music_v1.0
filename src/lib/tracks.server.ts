@@ -26,6 +26,30 @@ interface WavMeta {
   sampleRate: number;
   channels: number;
   bitsPerSample: number;
+  /** LIST INFO ICMT 에서 추출한 Suno clip id (없으면 "") */
+  sunoId: string;
+}
+
+/** LIST(INFO) 청크 본문에서 ICMT 코멘트 → "id=<uuid>" 추출 */
+function parseSunoIdFromList(body: Buffer): string {
+  if (body.length < 4 || body.toString("ascii", 0, 4) !== "INFO") return "";
+  let pos = 4;
+  while (pos + 8 <= body.length) {
+    const subId = body.toString("ascii", pos, pos + 4);
+    const subSize = body.readUInt32LE(pos + 4);
+    if (subSize > body.length - pos - 8) break;
+    if (subId === "ICMT") {
+      const comment = body
+        .toString("utf8", pos + 8, pos + 8 + subSize)
+        .replace(/\0+$/, "");
+      const m = /id=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(
+        comment
+      );
+      return m ? m[1] : "";
+    }
+    pos += 8 + subSize + (subSize % 2);
+  }
+  return "";
 }
 
 /** RIFF/WAVE 청크 워커 — fmt(byteRate)·data(size)만 읽어 duration 계산 */
@@ -47,6 +71,7 @@ async function readWavMeta(filePath: string): Promise<WavMeta | null> {
     let channels = 0;
     let bitsPerSample = 0;
     let dataSize = 0;
+    let sunoId = "";
     const header = Buffer.alloc(8);
 
     while (offset + 8 <= fileSize) {
@@ -61,6 +86,11 @@ async function readWavMeta(filePath: string): Promise<WavMeta | null> {
         sampleRate = body.readUInt32LE(4);
         byteRate = body.readUInt32LE(8);
         bitsPerSample = body.readUInt16LE(14);
+      } else if (chunkId === "LIST" && chunkSize >= 4 && chunkSize <= 65536) {
+        // INFO 메타데이터 — Suno 가 ICMT 에 clip id 를 기록
+        const body = Buffer.alloc(chunkSize);
+        await fh.read(body, 0, chunkSize, offset + 8);
+        if (!sunoId) sunoId = parseSunoIdFromList(body);
       } else if (chunkId === "data") {
         dataSize = chunkSize;
         // 스트리밍 작성된 WAV(사이즈 0/오버플로)는 실제 남은 바이트로 보정
@@ -79,6 +109,7 @@ async function readWavMeta(filePath: string): Promise<WavMeta | null> {
       sampleRate,
       channels,
       bitsPerSample,
+      sunoId,
     };
   } catch {
     return null;
@@ -181,6 +212,7 @@ export async function getTracks(): Promise<Track[]> {
         sampleRate: meta?.sampleRate ?? 0,
         channels: meta?.channels ?? 0,
         bitsPerSample: meta?.bitsPerSample ?? 0,
+        sunoId: meta?.sunoId ?? "",
       };
     })
   );

@@ -22,6 +22,9 @@ next-env.d.ts
 # 음악 원본 (대용량 — 로컬 보관)
 /.Music/
 
+# 외부 CLI 바이너리 (suno-cli 등)
+/tools/
+
 # vercel
 .vercel
 

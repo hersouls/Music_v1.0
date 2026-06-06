@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Play,
@@ -16,6 +16,7 @@ import {
   VolumeX,
   ChevronDown,
   ListMusic,
+  MicVocal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime, formatSampleRate } from "@/lib/format";
@@ -23,6 +24,7 @@ import { usePlayerStore } from "@/stores/usePlayerStore";
 import TrackArtwork from "@/components/music/TrackArtwork";
 import RangeSlider from "@/components/player/RangeSlider";
 import Visualizer from "@/components/player/Visualizer";
+import LyricsPanel from "@/components/player/LyricsPanel";
 
 /* ───────────────────────────────────────────
    NowPlaying — 풀스크린 재생 화면
@@ -31,6 +33,8 @@ import Visualizer from "@/components/player/Visualizer";
    ─────────────────────────────────────────── */
 
 export default function NowPlaying() {
+  /** 중앙 뷰 — 아트워크/비주얼라이저 또는 가사 */
+  const [view, setView] = useState<"art" | "lyrics">("art");
   const open = usePlayerStore((s) => s.nowPlayingOpen);
   const tracks = usePlayerStore((s) => s.tracks);
   const currentId = usePlayerStore((s) => s.currentId);
@@ -118,21 +122,48 @@ export default function NowPlaying() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">
                 지금 재생 중
               </p>
-              <button
-                onClick={() => toggleFavorite(track.id)}
-                aria-label={isFav ? "즐겨찾기 해제" : "즐겨찾기 추가"}
-                aria-pressed={isFav}
-                className={cn(
-                  "flex h-10 w-10 items-center justify-center rounded-xl transition-colors hover:bg-white/10",
-                  isFav ? "text-rose-300" : "text-white/80 hover:text-white"
-                )}
-              >
-                <Heart className="h-5 w-5" fill={isFav ? "currentColor" : "none"} />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setView((v) => (v === "art" ? "lyrics" : "art"))}
+                  aria-label={view === "lyrics" ? "아트워크 보기" : "가사 보기"}
+                  aria-pressed={view === "lyrics"}
+                  className={cn(
+                    "flex h-10 w-10 items-center justify-center rounded-xl transition-colors hover:bg-white/10",
+                    view === "lyrics"
+                      ? "bg-white/15 text-white"
+                      : "text-white/80 hover:text-white"
+                  )}
+                >
+                  <MicVocal className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => toggleFavorite(track.id)}
+                  aria-label={isFav ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                  aria-pressed={isFav}
+                  className={cn(
+                    "flex h-10 w-10 items-center justify-center rounded-xl transition-colors hover:bg-white/10",
+                    isFav ? "text-rose-300" : "text-white/80 hover:text-white"
+                  )}
+                >
+                  <Heart className="h-5 w-5" fill={isFav ? "currentColor" : "none"} />
+                </button>
+              </div>
             </div>
 
+            {/* 본문 — 가사 뷰 */}
+            {view === "lyrics" && (
+              <div className="flex min-h-0 flex-1 flex-col py-2">
+                <LyricsPanel key={track.id} track={track} />
+              </div>
+            )}
+
             {/* 본문 — 바이닐 + 곡 정보 + 비주얼라이저 */}
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 py-4 sm:gap-8">
+            <div
+              className={cn(
+                "flex min-h-0 flex-1 flex-col items-center justify-center gap-6 py-4 sm:gap-8",
+                view === "lyrics" && "hidden"
+              )}
+            >
               <div
                 className={cn(
                   "vinyl-spin relative h-52 w-52 overflow-hidden rounded-full shadow-2xl ring-8 ring-white/10 sm:h-64 sm:w-64",

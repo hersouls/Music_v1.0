@@ -24,6 +24,8 @@ export interface Track {
   sampleRate: number;
   channels: number;
   bitsPerSample: number;
+  /** Suno 생성곡 clip id — WAV LIST INFO ICMT 의 "id=<uuid>" (가사 가져오기용, 없으면 "") */
+  sunoId: string;
 }
 
 export type RepeatMode = "off" | "all" | "one";
