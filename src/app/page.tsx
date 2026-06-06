@@ -352,8 +352,18 @@ export default function HomePage() {
                   {recentTracks.map(({ track, at }) => (
                     <li
                       key={track.id}
-                      className="flex cursor-pointer items-center gap-3 px-5 py-3 transition-colors hover:bg-surface-secondary/60"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${track.title} 재생`}
+                      className="flex cursor-pointer items-center gap-3 px-5 py-3 transition-colors hover:bg-surface-secondary/60 focus-visible:bg-surface-secondary/60 focus-visible:outline-none"
                       onClick={() => playTrack(track.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          playTrack(track.id);
+                        }
+                      }}
                     >
                       <span className="h-9 w-9 shrink-0 overflow-hidden rounded-lg">
                         <TrackArtwork trackId={track.id} />

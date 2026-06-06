@@ -29,6 +29,8 @@ interface PlayerState {
   /* 재생 상태 */
   currentId: string | null;
   queue: string[];
+  /** 큐의 소스 컨텍스트(셔플 전 원래 순서) — 셔플 토글 시 멤버십·순서 복원용 */
+  baseQueue: string[];
   isPlaying: boolean;
   currentTime: number;
   duration: number;
@@ -49,6 +51,8 @@ interface PlayerState {
   setTracks: (tracks: Track[]) => void;
   playTrack: (id: string, contextIds?: string[]) => void;
   playAll: (opts?: { shuffle?: boolean; ids?: string[] }) => void;
+  /** 현재 큐를 유지한 채 큐 안의 다른 곡으로 점프 (NowPlaying 다음 트랙 등) */
+  playFromQueue: (id: string) => void;
   toggle: () => void;
   next: () => void;
   prev: () => void;
@@ -75,13 +79,15 @@ function startTrack(
   get: () => PlayerState,
   set: (partial: Partial<PlayerState>) => void,
   id: string,
-  queue: string[]
+  queue: string[],
+  baseQueue?: string[]
 ) {
   const track = get().tracks.find((t) => t.id === id);
   if (!track) return;
   set({
     currentId: id,
     queue,
+    ...(baseQueue ? { baseQueue } : {}),
     currentTime: 0,
     duration: track.duration || 0,
     lastTrackId: id,
@@ -97,6 +103,7 @@ export const usePlayerStore = create<PlayerState>()(
 
       currentId: null,
       queue: [],
+      baseQueue: [],
       isPlaying: false,
       currentTime: 0,
       duration: 0,
@@ -113,12 +120,18 @@ export const usePlayerStore = create<PlayerState>()(
       lastTrackId: null,
 
       setTracks: (tracks) =>
-        set((s) => ({
-          tracks,
-          queue: s.queue.length
-            ? s.queue.filter((id) => tracks.some((t) => t.id === id))
-            : tracks.map((t) => t.id),
-        })),
+        set((s) => {
+          const exists = (id: string) => tracks.some((t) => t.id === id);
+          return {
+            tracks,
+            queue: s.queue.length
+              ? s.queue.filter(exists)
+              : tracks.map((t) => t.id),
+            baseQueue: s.baseQueue.length
+              ? s.baseQueue.filter(exists)
+              : tracks.map((t) => t.id),
+          };
+        }),
 
       playTrack: (id, contextIds) => {
         const { tracks, shuffle } = get();
@@ -130,7 +143,7 @@ export const usePlayerStore = create<PlayerState>()(
         const queue = shuffle
           ? [id, ...shuffled(base.filter((x) => x !== id))]
           : base;
-        startTrack(get, set, id, queue);
+        startTrack(get, set, id, queue, base);
       },
 
       playAll: (opts = {}) => {
@@ -141,7 +154,25 @@ export const usePlayerStore = create<PlayerState>()(
         const useShuffle = opts.shuffle ?? get().shuffle;
         if (opts.shuffle !== undefined) set({ shuffle: opts.shuffle });
         const queue = useShuffle ? shuffled(base) : base;
-        startTrack(get, set, queue[0], queue);
+        startTrack(get, set, queue[0], queue, base);
+      },
+
+      playFromQueue: (id) => {
+        // 큐·컨텍스트는 그대로 두고 재생 위치만 점프
+        if (!get().queue.includes(id)) {
+          get().playTrack(id);
+          return;
+        }
+        const track = get().tracks.find((t) => t.id === id);
+        if (!track) return;
+        set({
+          currentId: id,
+          currentTime: 0,
+          duration: track.duration || 0,
+          lastTrackId: id,
+        });
+        get()._registerPlay(id);
+        playerEngine.load(track.src, true);
       },
 
       toggle: () => {
@@ -194,17 +225,19 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       toggleShuffle: () => {
-        const { shuffle, currentId, tracks } = get();
-        const ids = tracks.map((t) => t.id);
+        // 큐 멤버십(소스 컨텍스트)을 보존한 채 순서만 섞고/복원한다
+        const { shuffle, currentId, tracks, baseQueue } = get();
+        const members = baseQueue.length ? baseQueue : tracks.map((t) => t.id);
         if (!shuffle) {
           set({
             shuffle: true,
-            queue: currentId
-              ? [currentId, ...shuffled(ids.filter((x) => x !== currentId))]
-              : shuffled(ids),
+            queue:
+              currentId && members.includes(currentId)
+                ? [currentId, ...shuffled(members.filter((x) => x !== currentId))]
+                : shuffled(members),
           });
         } else {
-          set({ shuffle: false, queue: ids });
+          set({ shuffle: false, queue: members });
         }
       },
 

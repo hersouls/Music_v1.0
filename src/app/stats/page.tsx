@@ -255,8 +255,18 @@ export default function StatsPage() {
                 {recent.map((p, i) => (
                   <li
                     key={`${p.id}-${p.at}-${i}`}
-                    className="flex cursor-pointer items-center gap-3 px-5 py-2.5 transition-colors hover:bg-surface-secondary/60"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${p.track.title} 재생`}
+                    className="flex cursor-pointer items-center gap-3 px-5 py-2.5 transition-colors hover:bg-surface-secondary/60 focus-visible:bg-surface-secondary/60 focus-visible:outline-none"
                     onClick={() => playTrack(p.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        playTrack(p.id);
+                      }
+                    }}
                   >
                     <span className="h-8 w-8 shrink-0 overflow-hidden rounded-lg">
                       <TrackArtwork trackId={p.id} />

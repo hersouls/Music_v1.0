@@ -52,7 +52,7 @@ export default function NowPlaying() {
   const toggleShuffle = usePlayerStore((s) => s.toggleShuffle);
   const cycleRepeat = usePlayerStore((s) => s.cycleRepeat);
   const toggleFavorite = usePlayerStore((s) => s.toggleFavorite);
-  const playTrack = usePlayerStore((s) => s.playTrack);
+  const playFromQueue = usePlayerStore((s) => s.playFromQueue);
   const setNowPlayingOpen = usePlayerStore((s) => s.setNowPlayingOpen);
 
   const track = useMemo(
@@ -271,7 +271,7 @@ export default function NowPlaying() {
                     {upNext.map((t) => (
                       <button
                         key={t.id}
-                        onClick={() => playTrack(t.id)}
+                        onClick={() => playFromQueue(t.id)}
                         className="flex shrink-0 items-center gap-2 rounded-xl bg-white/10 py-1.5 pl-1.5 pr-3 ring-1 ring-white/15 backdrop-blur-sm transition-colors hover:bg-white/20"
                       >
                         <span className="block h-7 w-7 overflow-hidden rounded-lg">

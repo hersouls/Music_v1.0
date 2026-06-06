@@ -44,11 +44,25 @@ export default function TrackRow({
 
   return (
     <li
+      role="button"
+      tabIndex={0}
+      aria-label={
+        isCurrent
+          ? `${track.title} ${playing ? "일시정지" : "재생"}`
+          : `${track.title} 재생`
+      }
       className={cn(
-        "group flex cursor-pointer items-center gap-3 px-5 py-3 transition-colors hover:bg-surface-secondary/60",
+        "group flex cursor-pointer items-center gap-3 px-5 py-3 transition-colors hover:bg-surface-secondary/60 focus-visible:bg-surface-secondary/60 focus-visible:outline-none",
         isCurrent && "bg-bora-50/50"
       )}
       onClick={handleRowClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          handleRowClick();
+        }
+      }}
       aria-current={isCurrent ? "true" : undefined}
     >
       {index != null && (

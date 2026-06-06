@@ -112,10 +112,14 @@ export default function AudioEngine() {
       if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
       const st = usePlayerStore.getState();
       switch (e.key) {
-        case " ":
+        case " ": {
+          // 버튼/링크에 포커스가 있으면 네이티브 활성화에 맡김 (이중 토글 방지)
+          const el = e.target as HTMLElement | null;
+          if (el?.closest?.('button, a, [role="button"]')) return;
           e.preventDefault();
           st.toggle();
           break;
+        }
         case "ArrowRight":
           e.preventDefault();
           if (e.shiftKey) st.next();
