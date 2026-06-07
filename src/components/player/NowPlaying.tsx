@@ -19,12 +19,13 @@ import {
   MicVocal,
   Share2,
   Download,
+  ImageDown,
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime, formatSampleRate } from "@/lib/format";
 import { trackShareUrl, copyToClipboard } from "@/lib/track-url";
-import { canDownload, downloadTrackFile } from "@/lib/download";
+import { canDownload, downloadTrackFile, downloadTrackCover } from "@/lib/download";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToastStore } from "@/stores/useToastStore";
 import { usePlayerStore } from "@/stores/usePlayerStore";
@@ -91,13 +92,28 @@ export default function NowPlaying() {
   async function download(t: Track) {
     if (downloading) return;
     setDownloading(true);
-    addToast({ type: "info", message: "다운로드를 준비하고 있어요…" });
+    addToast({ type: "info", message: "음원을 받고 있어요…" });
     try {
       await downloadTrackFile(t);
     } catch (e) {
       addToast({
         type: "error",
         message: e instanceof Error ? e.message : "다운로드에 실패했어요",
+      });
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  async function downloadCover(t: Track) {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await downloadTrackCover(t);
+    } catch (e) {
+      addToast({
+        type: "error",
+        message: e instanceof Error ? e.message : "커버 다운로드에 실패했어요",
       });
     } finally {
       setDownloading(false);
@@ -195,6 +211,7 @@ export default function NowPlaying() {
                     onClick={() => void download(track)}
                     disabled={downloading}
                     aria-label="음원 다운로드"
+                    title="음원 다운로드"
                     className="flex h-10 w-10 items-center justify-center rounded-xl text-white/80 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
                   >
                     {downloading ? (
@@ -202,6 +219,17 @@ export default function NowPlaying() {
                     ) : (
                       <Download className="h-5 w-5" />
                     )}
+                  </button>
+                )}
+                {allowDownload && track.visibility === "public" && track.coverUrl && (
+                  <button
+                    onClick={() => void downloadCover(track)}
+                    disabled={downloading}
+                    aria-label="커버 이미지 다운로드"
+                    title="커버 이미지 다운로드"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl text-white/80 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+                  >
+                    <ImageDown className="h-5 w-5" />
                   </button>
                 )}
                 <button

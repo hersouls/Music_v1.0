@@ -30,13 +30,14 @@ pnpm typecheck  # tsc --noEmit
 - `src/lib/firebase.ts` — Health 패턴 부트스트랩 (lazy Auth/Firestore/Storage, `isFirebaseConfigured` 폴백, 연결 복구)
 - `src/lib/firestore-tracks.ts` — 트랙 데이터 레이어: `subscribeMyTracks`/`subscribePublicTracks`(onSnapshot), 이동·앨범 이름변경/삭제(=싱글로 이동, **album 문자열 필드 batch 갱신 — 문서 id 불변이라 청취 데이터·재생 중 곡 유지**), `setTracksAlbum`(곡 골라 새 앨범 담기), 곡 삭제(문서+Storage 원본·스트림·커버), 가사 저장/삭제(LRC 자동 감지), 공개 토글, `saveTrackCover`(커버 Storage 업로드+문서 갱신)
 - `src/lib/ai-client.ts` — AI 라우트 클라 헬퍼(`requestLyricsAlign`/`requestCoverArt`, ID 토큰 자동 첨부)
-- `src/lib/upload.ts` — 클라 업로드: WAV RIFF 헤더 파싱(duration·sampleRate, 파일 전체 안 읽음)/비 WAV 는 `<audio>` 길이 측정 → ffmpeg.wasm mp3 변환(무손실만) → Storage `tracks/{uid}/{trackId}/original.<ext>`(+`stream.mp3`) → Firestore 문서. 진행률 콜백(분석/변환/업로드)
+- `src/lib/upload.ts` — 클라 업로드: WAV RIFF 헤더 파싱(duration·sampleRate, 파일 전체 안 읽음)/비 WAV 는 `<audio>` 길이 측정 → ffmpeg.wasm mp3 변환(무손실만, **`convert` 옵션 false 면 생략→WAV 원본 재생**) → Storage `tracks/{uid}/{trackId}/original.<ext>`(+`stream.mp3`) → Firestore 문서. 진행률 콜백(분석/변환/업로드)
+- `src/lib/download.ts` — 공개곡 음원·커버 다운로드(`canDownload(email)` allowlist = deasoung@gmail.com·ycdy80@gmail.com 두 계정만 버튼 노출). CORS blob 저장(원본 파일명/`{제목} cover.png`)·새 탭 폴백. 노출: NowPlaying·공유페이지·둘러보기 행·TrackEditModal. ⚠️ 공개곡은 Storage 공개 읽기라 직접 URL 접근까진 못 막음(UI 게이팅)
 - `src/lib/listening-sync.ts` — 청취 데이터 ↔ Firestore 단일 문서 동기화 (에코 억제 + 1.5s 디바운스, 다기기 실시간)
 - `src/lib/player-engine.ts` — Audio 엘리먼트 + AudioContext/Analyser 싱글톤. **스토어를 import 하지 않음**(순환 방지) — 이벤트는 `listeners` 주입
 - `src/stores/usePlayerStore.ts` — 재생 상태 + 청취 데이터. `skipHydration: true` — AudioEngine 마운트 시 수동 rehydrate. 재생 중 곡이 삭제되면 자동 정지
 - `src/contexts/AuthContext.tsx` — Google 로그인(웹 전용) + `users/{uid}` 프로필 문서 갱신
 - `src/contexts/TracksContext.tsx` — 내 곡·공개 곡 구독 제공(`useTracks`/`usePublicTracks`/`useAlbums`/`useTracksLoading`) + 스토어에 합집합 시드(공개 곡 재생용)
-- `src/components/app/` — AppShell(**AuthProvider→로그인 게이트→TracksProvider→셸**, 사이드바·모바일 드로어·⌘K·계정 메뉴), LoginScreen(np-hero 게이트+미설정 안내), CommandPalette, **TrackWizard**(기본 "곡 등록" 플로우 — 5단계: 업로드(백그라운드 병렬)→가사(LRC 감지)→AI 싱크(자동)→Cartoonify 커버(자동 생성·재생성)→앨범 맵핑+공개. 완료 시점 일괄 반영, 진행 중엔 비공개·싱글), UploadTracksModal(여러 곡 일괄 — 위자드에서 전환), CreateAlbumModal(보관함 곡 골라 담기+커버 모자이크), AlbumNameModal(이름변경), MoveTrackModal(이동+**곡 삭제**)
+- `src/components/app/` — AppShell(**AuthProvider→로그인 게이트→TracksProvider→셸**, 사이드바·모바일 드로어·⌘K·계정 메뉴), LoginScreen(np-hero 게이트+미설정 안내), CommandPalette, **TrackWizard**(기본 "곡 등록" 플로우 — 5단계: 업로드(백그라운드 병렬·**음질 토글: mp3 변환/WAV 무손실**)→가사(LRC 감지)→AI 싱크(자동)→Cartoonify 커버(자동 생성·재생성)→앨범 맵핑+공개. 완료 시점 일괄 반영, 진행 중엔 비공개·싱글), UploadTracksModal(여러 곡 일괄+음질 옵션 — 위자드에서 전환), CreateAlbumModal(보관함 곡 골라 담기+커버 모자이크), AlbumNameModal(이름변경), **TrackEditModal**(제목·아티스트·앨범·공개·커버(AI 재생성·제거·다운로드)·삭제 — 보관함 행 ✏️)
 - `src/components/player/` — AudioEngine(배선·MediaSession·단축키), PlayerBar, NowPlaying(np-hero+바이닐+Visualizer+가사 토글), LyricsPanel(track.lyrics 필드 기반 — LRC 하이라이트·시킹, **소유자만 편집**), LyricsSyncEditor(탭-싱크: AI 초안 또는 직접 찍기→±0.2s 조정→LRC 저장)
 - `src/lib/lrc.ts` — LRC 파서/직렬화. `src/components/music/` — TrackArtwork(**coverUrl 이미지 우선**, 없거나 로드 실패 시 id 해시 결정적 SVG), TrackRow(재생·즐겨찾기·이동·공개 토글), EqBars
 - `src/components/ui/`, `src/components/charts/`, `src/styles/` — **Health v1.0 에서 verbatim 복사** (수정 금지에 준함 — 디자인 변경은 Health 와 동기화)

@@ -53,6 +53,19 @@ export async function downloadTrackFile(track: Track): Promise<void> {
     safeName(track.fileName || track.title) +
     (track.fileName ? "" : extFromUrl(url));
 
+  await saveUrlAs(url, filename);
+}
+
+/** 커버 이미지 다운로드 — `{제목} cover.png` (커버 없으면 throw) */
+export async function downloadTrackCover(track: Track): Promise<void> {
+  if (!track.coverUrl) throw new Error("이 곡에는 커버 이미지가 없습니다");
+  const m = /\.(png|jpe?g|webp)(?:\?|$)/i.exec(track.coverUrl);
+  const ext = m ? `.${m[1].toLowerCase()}` : ".png";
+  await saveUrlAs(track.coverUrl, `${safeName(track.title)} cover${ext}`);
+}
+
+/** URL → blob 저장 (CORS), 실패 시 새 탭 폴백 */
+async function saveUrlAs(url: string, filename: string): Promise<void> {
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`다운로드 실패 (${res.status})`);

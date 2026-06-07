@@ -23,6 +23,7 @@ import { useDialogStore } from "@/stores/useDialogStore";
 import {
   uploadTrack,
   extOf,
+  isConvertible,
   type UploadPhase,
   type UploadResult,
 } from "@/lib/upload";
@@ -141,6 +142,8 @@ export default function TrackWizard({
   const [albumChoice, setAlbumChoice] = useState("");
   const [newAlbum, setNewAlbum] = useState("");
   const [visibility, setVisibility] = useState<Visibility>("public");
+  /** WAV/FLAC 을 무손실 원본 그대로 등록(mp3 변환 생략) */
+  const [keepLossless, setKeepLossless] = useState(false);
   const [finishing, setFinishing] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -184,6 +187,7 @@ export default function TrackWizard({
     setAlbumChoice("");
     setNewAlbum("");
     setVisibility("public");
+    setKeepLossless(false);
     setFinishing(false);
     syncedForRef.current = "";
     trackIdRef.current = null;
@@ -220,7 +224,7 @@ export default function TrackWizard({
       setUpload({ status: "working", phase: "probe", pct: 0 });
       uploadTrack(
         // 위자드 완료 전까지는 비공개·싱글 — 마지막 단계에서 한 번에 반영.
-        { file: f, album: "", visibility: "private", uid, ownerName, trackId },
+        { file: f, album: "", visibility: "private", uid, ownerName, trackId, convert: !keepLossless },
         {
           onProgress: (phase, ratio) => {
             if (sessionRef.current !== session) return;
@@ -247,7 +251,7 @@ export default function TrackWizard({
           });
         });
     },
-    [uid, user]
+    [uid, user, keepLossless]
   );
 
   function pickFile(f: File) {
@@ -549,6 +553,8 @@ export default function TrackWizard({
                         setDragOver={setDragOver}
                         upload={upload}
                         locked={upload.status === "working" || upload.status === "done"}
+                        keepLossless={keepLossless}
+                        onKeepLosslessChange={setKeepLossless}
                         onPickClick={() => inputRef.current?.click()}
                         onDropFile={pickFile}
                         onClear={() => setFile(null)}
@@ -718,6 +724,8 @@ function StepFile({
   setDragOver,
   upload,
   locked,
+  keepLossless,
+  onKeepLosslessChange,
   onPickClick,
   onDropFile,
   onClear,
@@ -729,6 +737,8 @@ function StepFile({
   setDragOver: (v: boolean) => void;
   upload: UploadStatus;
   locked: boolean;
+  keepLossless: boolean;
+  onKeepLosslessChange: (v: boolean) => void;
   onPickClick: () => void;
   onDropFile: (f: File) => void;
   onClear: () => void;
@@ -783,8 +793,10 @@ function StepFile({
               <span className="rounded-full bg-surface-primary px-2 py-0.5 text-[10px] font-bold uppercase ring-1 ring-strong">
                 {extOf(file.name).slice(1)}
               </span>
-              {extOf(file.name) === ".wav" && (
-                <span className="text-[11px]">→ 스트리밍용 mp3 자동 생성</span>
+              {file && isConvertible(file.name) && (
+                <span className="text-[11px]">
+                  {keepLossless ? "→ 원본 무손실 그대로" : "→ 스트리밍용 mp3 자동 생성"}
+                </span>
               )}
             </p>
           </div>
@@ -797,6 +809,49 @@ function StepFile({
               <X className="h-4 w-4" />
             </button>
           )}
+        </div>
+      )}
+
+      {/* 음질 선택 — WAV/FLAC 만 (변환 대상) */}
+      {file && isConvertible(file.name) && (
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-heading">음질</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => !locked && onKeepLosslessChange(false)}
+              disabled={locked}
+              aria-pressed={!keepLossless}
+              className={cn(
+                "rounded-xl border px-3 py-2.5 text-left transition-all disabled:opacity-60",
+                !keepLossless
+                  ? "border-bora-300 bg-bora-50 ring-1 ring-bora-300"
+                  : "border-strong bg-surface-primary hover:bg-surface-secondary"
+              )}
+            >
+              <span className={cn("block text-sm font-semibold", !keepLossless ? "text-bora-700" : "text-heading")}>
+                스트리밍 최적 (mp3)
+              </span>
+              <span className="block text-[11px] text-caption">용량↓·빠른 재생 · 원본도 보관</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => !locked && onKeepLosslessChange(true)}
+              disabled={locked}
+              aria-pressed={keepLossless}
+              className={cn(
+                "rounded-xl border px-3 py-2.5 text-left transition-all disabled:opacity-60",
+                keepLossless
+                  ? "border-bora-300 bg-bora-50 ring-1 ring-bora-300"
+                  : "border-strong bg-surface-primary hover:bg-surface-secondary"
+              )}
+            >
+              <span className={cn("block text-sm font-semibold", keepLossless ? "text-bora-700" : "text-heading")}>
+                원본 무손실 (WAV)
+              </span>
+              <span className="block text-[11px] text-caption">변환 없이 원본 그대로 재생</span>
+            </button>
+          </div>
         </div>
       )}
 

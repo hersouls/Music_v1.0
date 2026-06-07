@@ -143,14 +143,6 @@ export function newTrackId(): string {
   return doc(collection(getDb(), TRACKS_COLLECTION)).id;
 }
 
-/** 곡을 앨범↔싱글로 이동 — album 필드만 갱신 (id 불변) */
-export async function moveTrack(id: string, album: string): Promise<void> {
-  await updateDoc(trackRef(id), {
-    album: album.trim(),
-    updatedAt: serverTimestamp(),
-  });
-}
-
 /** 새 앨범 만들기·곡 일괄 담기 — 선택한 곡들의 album 필드를 batch 갱신 (id 불변 = 청취 데이터 유지) */
 export async function setTracksAlbum(
   ids: string[],
@@ -291,4 +283,35 @@ export async function setTrackVisibility(
   visibility: Visibility
 ): Promise<void> {
   await updateDoc(trackRef(id), { visibility, updatedAt: serverTimestamp() });
+}
+
+/** 곡 메타 수정 — 제목·아티스트·앨범·공개 (소유자 전용, 단일 updateDoc) */
+export async function updateTrackMeta(
+  id: string,
+  patch: {
+    title?: string;
+    artist?: string;
+    album?: string;
+    visibility?: Visibility;
+  }
+): Promise<void> {
+  const data: Record<string, unknown> = { updatedAt: serverTimestamp() };
+  // 빈 제목은 무시(기존 제목 유지) — 빈 문자열이 그대로 저장돼 UI 가 비는 것 방지
+  if (patch.title !== undefined && patch.title.trim()) data.title = patch.title.trim();
+  if (patch.artist !== undefined) data.artist = patch.artist.trim();
+  if (patch.album !== undefined) data.album = patch.album.trim();
+  if (patch.visibility !== undefined) data.visibility = patch.visibility;
+  await updateDoc(trackRef(id), data);
+}
+
+/** 커버 제거 — 문서 필드 비우고 Storage 객체 삭제 (결정적 SVG 아트로 폴백) */
+export async function clearTrackCover(track: Track): Promise<void> {
+  await updateDoc(trackRef(track.id), {
+    coverUrl: null,
+    coverPath: null,
+    updatedAt: serverTimestamp(),
+  });
+  if (track.coverPath) {
+    await deleteObject(ref(getFirebaseStorage(), track.coverPath)).catch(() => {});
+  }
 }

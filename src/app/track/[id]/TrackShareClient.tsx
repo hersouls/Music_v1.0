@@ -12,7 +12,7 @@ import { useParams } from "next/navigation";
 import { fetchTrack } from "@/lib/firestore-tracks";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { trackShareUrl, copyToClipboard } from "@/lib/track-url";
-import { canDownload, downloadTrackFile } from "@/lib/download";
+import { canDownload, downloadTrackFile, downloadTrackCover } from "@/lib/download";
 import { useAuth } from "@/contexts/AuthContext";
 import { parseLyrics, activeLineIndex, type ParsedLyrics } from "@/lib/lrc";
 import { formatTime } from "@/lib/format";
@@ -31,6 +31,7 @@ import {
   MicVocal,
   ArrowRight,
   Download,
+  ImageDown,
 } from "lucide-react";
 
 /* ───────────────────────────────────────────
@@ -236,6 +237,16 @@ function SharePlayer({ track }: { track: Track }) {
     }
   }
 
+  async function downloadCover() {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await downloadTrackCover(track);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
@@ -311,6 +322,17 @@ function SharePlayer({ track }: { track: Track }) {
               <Download className="h-4 w-4" />
             )}
             {downloading ? "받는 중…" : "다운로드"}
+          </button>
+        )}
+        {allowDownload && track.coverUrl && (
+          <button
+            onClick={() => void downloadCover()}
+            disabled={downloading}
+            aria-label="커버 이미지 다운로드"
+            title="커버 이미지 다운로드"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-white ring-1 ring-white/25 backdrop-blur-sm transition-colors hover:bg-white/25 disabled:opacity-50"
+          >
+            <ImageDown className="h-4.5 w-4.5" />
           </button>
         )}
       </div>

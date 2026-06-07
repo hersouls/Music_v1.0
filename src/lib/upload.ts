@@ -212,6 +212,13 @@ export interface UploadInput {
   ownerName: string;
   /** 재시도 시 동일 문서 id 재사용 — 고아 Storage 객체 방지 (없으면 신규 생성) */
   trackId?: string;
+  /** WAV/FLAC 을 mp3 로 변환해 스트리밍할지 (기본 true). false 면 원본 무손실 그대로 재생 */
+  convert?: boolean;
+}
+
+/** 이 파일이 mp3 변환 대상(무손실 포맷)인지 — UI 에서 음질 옵션 노출 판단용 */
+export function isConvertible(fileName: string): boolean {
+  return CONVERT_EXTS.has(extOf(fileName));
 }
 
 export interface UploadResult {
@@ -223,7 +230,7 @@ export interface UploadResult {
 
 /** 1곡 업로드 — 완료 시 문서 id + 재생 URL (위자드 후속 단계용) 반환 */
 export async function uploadTrack(
-  { file, album, visibility, uid, ownerName, trackId }: UploadInput,
+  { file, album, visibility, uid, ownerName, trackId, convert = true }: UploadInput,
   { onProgress }: UploadCallbacks = {}
 ): Promise<UploadResult> {
   const ext = extOf(file.name);
@@ -244,9 +251,10 @@ export async function uploadTrack(
   const baseDir = `tracks/${uid}/${docRef.id}`;
   const storagePath = `${baseDir}/original${ext}`;
 
-  /* ② mp3 변환 (무손실 포맷만) — 실패해도 업로드는 계속 */
+  /* ② mp3 변환 (무손실 포맷 + convert 옵션) — 실패해도 업로드는 계속.
+        convert=false 면 변환 생략 → 원본(WAV) 무손실 그대로 재생 */
   let mp3: Blob | null = null;
-  if (CONVERT_EXTS.has(ext)) {
+  if (convert && CONVERT_EXTS.has(ext)) {
     onProgress?.("convert", 0);
     mp3 = await convertToMp3(file, (r) => onProgress?.("convert", r));
   }

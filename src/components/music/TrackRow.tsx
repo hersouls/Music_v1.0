@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, Pause, Heart, FolderInput, Globe, Lock, Download } from "lucide-react";
+import { Play, Pause, Heart, SquarePen, Globe, Lock, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime, formatSampleRate } from "@/lib/format";
 import { usePlayerStore } from "@/stores/usePlayerStore";
@@ -19,7 +19,7 @@ export default function TrackRow({
   contextIds,
   showPlayCount = false,
   showAlbum = true,
-  onMove,
+  onEdit,
   onToggleVisibility,
   onDownload,
 }: {
@@ -31,8 +31,8 @@ export default function TrackRow({
   showPlayCount?: boolean;
   /** 앨범명 표시 — 앨범 그룹 내부에선 중복이라 끔 */
   showAlbum?: boolean;
-  /** 지정 시 "앨범으로 이동" 버튼 노출 (보관함 관리) */
-  onMove?: (track: Track) => void;
+  /** 지정 시 "곡 수정" 버튼 노출 (보관함 관리) */
+  onEdit?: (track: Track) => void;
   /** 지정 시 공개/비공개 토글 버튼 노출 (보관함 관리) */
   onToggleVisibility?: (track: Track) => void;
   /** 지정 시 다운로드 버튼 노출 (허용 계정 — 공개곡) */
@@ -170,16 +170,16 @@ export default function TrackRow({
         </button>
       )}
 
-      {onMove && (
+      {onEdit && (
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onMove(track);
+            onEdit(track);
           }}
-          aria-label={`${track.title} 앨범으로 이동`}
+          aria-label={`${track.title} 수정`}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-caption opacity-0 transition-colors hover:bg-surface-tertiary hover:text-bora-600 focus-visible:opacity-100 group-hover:opacity-100"
         >
-          <FolderInput className="h-4 w-4" />
+          <SquarePen className="h-4 w-4" />
         </button>
       )}
 

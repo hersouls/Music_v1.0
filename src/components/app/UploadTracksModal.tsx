@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useAlbums } from "@/contexts/TracksContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToastStore } from "@/stores/useToastStore";
-import { uploadTrack, extOf, type UploadPhase } from "@/lib/upload";
+import { uploadTrack, extOf, isConvertible, type UploadPhase } from "@/lib/upload";
 import { formatBytes } from "@/lib/format";
 import { uid as makeUid, cn } from "@/lib/utils";
 import Modal from "@/components/ui/Modal";
@@ -69,6 +69,7 @@ export default function UploadTracksModal({
   const [albumChoice, setAlbumChoice] = useState("");
   const [newAlbum, setNewAlbum] = useState("");
   const [visibility, setVisibility] = useState<Visibility>("public");
+  const [keepLossless, setKeepLossless] = useState(false);
   const existingAlbums = useAlbums();
   const effectiveAlbum =
     albumChoice === NEW_ALBUM ? newAlbum.trim() : albumChoice;
@@ -122,6 +123,7 @@ export default function UploadTracksModal({
             visibility,
             uid,
             ownerName,
+            convert: !keepLossless,
           },
           {
             onProgress: (phase, ratio) =>
@@ -155,6 +157,7 @@ export default function UploadTracksModal({
     setAlbumChoice("");
     setNewAlbum("");
     setVisibility("public");
+    setKeepLossless(false);
     onClose();
   }
 
@@ -248,6 +251,25 @@ export default function UploadTracksModal({
             </select>
           </Field>
         </div>
+
+        {/* 음질 — WAV/FLAC 가 있을 때만 */}
+        {items.some((i) => isConvertible(i.file.name)) && (
+          <Field
+            label="음질 (WAV·FLAC)"
+            hint={keepLossless ? "원본 그대로 — 변환 없이 무손실 재생" : "mp3 변환 — 용량↓·빠른 재생 (원본도 함께 보관)"}
+          >
+            <select
+              value={keepLossless ? "wav" : "mp3"}
+              onChange={(e) => setKeepLossless(e.target.value === "wav")}
+              disabled={uploading || allFinished}
+              aria-label="음질"
+              className={cn(fieldInputClass)}
+            >
+              <option value="mp3">스트리밍 최적 (mp3 변환)</option>
+              <option value="wav">원본 무손실 (WAV 그대로)</option>
+            </select>
+          </Field>
+        )}
 
         {/* 드롭 존 */}
         <button

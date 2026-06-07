@@ -18,7 +18,7 @@ import UploadTracksModal from "@/components/app/UploadTracksModal";
 import AlbumNameModal, {
   type AlbumNameModalState,
 } from "@/components/app/AlbumNameModal";
-import MoveTrackModal from "@/components/app/MoveTrackModal";
+import TrackEditModal from "@/components/app/TrackEditModal";
 import CreateAlbumModal from "@/components/app/CreateAlbumModal";
 import TrackWizard from "@/components/app/TrackWizard";
 import { fieldInputClass } from "@/components/ui/Form";
@@ -67,7 +67,7 @@ export default function LibraryPage() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [createAlbumOpen, setCreateAlbumOpen] = useState(false);
   const [albumModal, setAlbumModal] = useState<AlbumNameModalState | null>(null);
-  const [moveTrack, setMoveTrack] = useState<Track | null>(null);
+  const [editTrack, setEditTrack] = useState<Track | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -340,7 +340,7 @@ export default function LibraryPage() {
                     contextIds={ids}
                     showPlayCount
                     showAlbum={false}
-                    onMove={setMoveTrack}
+                    onEdit={setEditTrack}
                     onToggleVisibility={toggleVisibility}
                   />
                 ))}
@@ -364,7 +364,7 @@ export default function LibraryPage() {
         onClose={() => setCreateAlbumOpen(false)}
       />
       <AlbumNameModal state={albumModal} onClose={() => setAlbumModal(null)} />
-      <MoveTrackModal track={moveTrack} onClose={() => setMoveTrack(null)} />
+      <TrackEditModal track={editTrack} onClose={() => setEditTrack(null)} />
     </div>
   );
 }
