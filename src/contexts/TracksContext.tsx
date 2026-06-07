@@ -73,13 +73,17 @@ export function TracksProvider({ children }: { children: React.ReactNode }) {
   const { uid } = useAuth();
   const [myTracks, setMyTracks] = useState<Track[] | null>(null);
   const [publicTracks, setPublicTracks] = useState<Track[]>([]);
+  const [publicLoaded, setPublicLoaded] = useState(false);
   const [grants, setGrants] = useState<Grant[]>([]);
   const [sharedByOwner, setSharedByOwner] = useState<Record<string, Track[]>>({});
   const setTracks = usePlayerStore((s) => s.setTracks);
 
-  /* 내 곡 구독 */
+  /* 내 곡 구독 (로그인 시) */
   useEffect(() => {
-    if (!uid) return;
+    if (!uid) {
+      setMyTracks(null);
+      return;
+    }
     const unsub = subscribeMyTracks(uid, setMyTracks, () => setMyTracks([]));
     return () => {
       unsub();
@@ -87,17 +91,19 @@ export function TracksProvider({ children }: { children: React.ReactNode }) {
     };
   }, [uid]);
 
-  /* 공개 곡 구독 (둘러보기 + 공개 곡 재생) */
+  /* 공개 곡 구독 — 로그인 없이도 (둘러보기·익명 청취) */
   useEffect(() => {
-    if (!uid) return;
-    const unsub = subscribePublicTracks(setPublicTracks, () =>
-      setPublicTracks([])
-    );
+    const apply = (tracks: Track[]) => {
+      setPublicTracks(tracks);
+      setPublicLoaded(true);
+    };
+    const unsub = subscribePublicTracks(apply, () => apply([]));
     return () => {
       unsub();
       setPublicTracks([]);
+      setPublicLoaded(false);
     };
-  }, [uid]);
+  }, []);
 
   /* 내가 수락한 권한(grant) 구독 */
   useEffect(() => {
@@ -169,21 +175,27 @@ export function TracksProvider({ children }: { children: React.ReactNode }) {
     setTracks(merged);
   }, [myTracks, publicTracks, sharedLibraries, setTracks]);
 
+  /* useTracks() 의 주 목록 — 로그인: 내 곡 / 비로그인: 공개 카탈로그 */
+  const primaryTracks = useMemo(
+    () => (uid ? myTracks ?? [] : publicTracks),
+    [uid, myTracks, publicTracks]
+  );
+
   const albums = useMemo(() => {
     const names = new Set<string>();
-    for (const t of myTracks ?? []) if (t.album) names.add(t.album);
+    for (const t of primaryTracks) if (t.album) names.add(t.album);
     return [...names].sort((a, b) => a.localeCompare(b, "ko"));
-  }, [myTracks]);
+  }, [primaryTracks]);
 
   const value = useMemo<LibraryData>(
     () => ({
-      tracks: myTracks ?? [],
+      tracks: primaryTracks,
       publicTracks,
       sharedLibraries,
       albums,
-      loading: myTracks === null,
+      loading: uid ? myTracks === null : !publicLoaded,
     }),
-    [myTracks, publicTracks, sharedLibraries, albums]
+    [uid, primaryTracks, publicTracks, sharedLibraries, albums, myTracks, publicLoaded]
   );
 
   return (

@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import PageHeader from "@/components/ui/PageHeader";
 import SectionCard from "@/components/ui/SectionCard";
 import EmptyState from "@/components/ui/EmptyState";
+import LoginPrompt from "@/components/app/LoginPrompt";
 import { Field, fieldInputClass } from "@/components/ui/Form";
 import InviteQR from "@/components/app/InviteQR";
 import {
@@ -89,6 +90,18 @@ export default function SettingsPage() {
     } finally {
       setCreating(false);
     }
+  }
+
+  if (!uid) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="설정" description="초대 · 공유 관리" />
+        <LoginPrompt
+          title="로그인이 필요해요"
+          description="초대 코드 발급·공유 관리는 로그인 후 사용할 수 있어요."
+        />
+      </div>
+    );
   }
 
   return (

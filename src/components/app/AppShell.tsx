@@ -36,6 +36,7 @@ import {
   X,
   Search,
   LogOut,
+  LogIn,
 } from "lucide-react";
 
 /* ───────────────────────────────────────────
@@ -57,14 +58,16 @@ function SidebarContent({
 }) {
   const tracks = useTracks();
   const sharedLibs = useSharedLibraries();
-  const { user, signOut } = useAuth();
+  const { user, signOut, signInWithGoogle } = useAuth();
   const playAll = usePlayerStore((s) => s.playAll);
   const totalSec = tracks.reduce((s, t) => s + t.duration, 0);
+  // 비로그인 시 로그인 필요 항목(보관함·설정) 숨김
+  const visibleItems = user ? items : items.filter((i) => !i.authRequired);
   // 공유받은 음악이 있으면 "공유 보관함"을 설정 앞에 삽입
   const navItems =
     sharedLibs.length > 0
-      ? [...items.slice(0, -1), SHARED_NAV_ITEM, items[items.length - 1]]
-      : items;
+      ? [...visibleItems.slice(0, -1), SHARED_NAV_ITEM, visibleItems[visibleItems.length - 1]]
+      : visibleItems;
 
   return (
     <>
@@ -130,10 +133,10 @@ function SidebarContent({
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-heading">
-              보관함 {tracks.length}곡
+              {user ? "보관함" : "공개 곡"} {tracks.length}곡
             </p>
             <p className="truncate text-xs text-caption">
-              {formatDurationKo(totalSec)} · 클라우드 보관함
+              {formatDurationKo(totalSec)} · {user ? "클라우드 보관함" : "둘러보기 카탈로그"}
             </p>
           </div>
         </div>
@@ -149,38 +152,51 @@ function SidebarContent({
         </button>
       </div>
 
-      {/* 계정 — 프로필 + 로그아웃 */}
+      {/* 계정 — 로그인(비로그인) / 프로필 + 로그아웃 */}
       <div className="border-t border-strong p-3">
-        <div className="flex items-center gap-3 rounded-xl px-3 py-2">
-          {user?.photoURL ? (
-            <Image
-              src={user.photoURL}
-              alt=""
-              width={36}
-              height={36}
-              unoptimized
-              className="h-9 w-9 shrink-0 rounded-full ring-1 ring-strong"
-            />
-          ) : (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-bora-100 text-sm font-bold text-bora-700">
-              {(user?.displayName ?? "?").slice(0, 1)}
+        {user ? (
+          <div className="flex items-center gap-3 rounded-xl px-3 py-2">
+            {user.photoURL ? (
+              <Image
+                src={user.photoURL}
+                alt=""
+                width={36}
+                height={36}
+                unoptimized
+                className="h-9 w-9 shrink-0 rounded-full ring-1 ring-strong"
+              />
+            ) : (
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-bora-100 text-sm font-bold text-bora-700">
+                {(user.displayName ?? "?").slice(0, 1)}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-heading">
+                {user.displayName ?? "사용자"}
+              </p>
+              <p className="truncate text-xs text-caption">{user.email}</p>
             </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-heading">
-              {user?.displayName ?? "사용자"}
-            </p>
-            <p className="truncate text-xs text-caption">{user?.email}</p>
+            <button
+              onClick={() => void signOut()}
+              aria-label="로그아웃"
+              title="로그아웃"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-caption transition-colors hover:bg-surface-tertiary hover:text-body"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
+        ) : (
           <button
-            onClick={() => void signOut()}
-            aria-label="로그아웃"
-            title="로그아웃"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-caption transition-colors hover:bg-surface-tertiary hover:text-body"
+            onClick={() => {
+              onNavigate?.();
+              void signInWithGoogle();
+            }}
+            className="flex w-full items-center gap-3 rounded-xl bg-bora-600 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-bora-700"
           >
-            <LogOut className="h-4 w-4" />
+            <LogIn className="h-5 w-5 shrink-0" />
+            로그인 / 내 음악 올리기
           </button>
-        </div>
+        )}
       </div>
     </>
   );
@@ -333,7 +349,7 @@ function SplashScreen() {
 }
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { user, uid, loading, firebaseReady } = useAuth();
+  const { uid, loading, firebaseReady } = useAuth();
   const pathname = usePathname();
 
   /* 로그아웃 시 재생·청취 상태 정리 — 다른 계정 데이터와 섞이지 않게 */
@@ -365,8 +381,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (!firebaseReady) return <LoginScreen />; // 설정 안내 표시
   if (loading) return <SplashScreen />;
-  if (!user) return <LoginScreen />;
-
+  // 로그인 없이도 공개 곡 청취 가능 — 쓰기 기능만 로그인/권한 필요(UI·규칙으로 차단)
   return (
     <TracksProvider>
       <Shell>{children}</Shell>

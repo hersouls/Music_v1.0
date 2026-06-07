@@ -13,6 +13,7 @@ import {
   TransitionChild,
 } from "@headlessui/react";
 import { useTracks } from "@/contexts/TracksContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { usePlayerStore } from "@/stores/usePlayerStore";
 import { NAV_ITEMS } from "@/lib/nav";
 import { formatTime } from "@/lib/format";
@@ -63,6 +64,7 @@ function hay(...parts: (string | undefined | null)[]): string {
 export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const router = useRouter();
   const tracks = useTracks();
+  const { user } = useAuth();
   const playTrack = usePlayerStore((s) => s.playTrack);
   const playAll = usePlayerStore((s) => s.playAll);
   const [query, setQuery] = useState("");
@@ -71,6 +73,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
     const out: Result[] = [];
 
     for (const item of NAV_ITEMS) {
+      if (item.authRequired && !user) continue; // 비로그인 시 보관함·설정 숨김
       out.push({
         key: `nav-${item.href}`,
         kind: "nav",
@@ -97,22 +100,24 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       haystack: hay("셔플 재생", "셔플", "shuffle", "랜덤"),
       run: () => playAll({ shuffle: true }),
     });
-    out.push({
-      key: "action-add-tracks",
-      kind: "action",
-      title: "곡 등록",
-      subtitle: "오디오 파일을 보관함에 추가",
-      haystack: hay("곡 등록", "업로드", "추가", "upload", "add"),
-      run: () => router.push("/library?add=1"),
-    });
-    out.push({
-      key: "action-create-album",
-      kind: "action",
-      title: "새 앨범 만들기",
-      subtitle: "보관함의 곡을 골라 앨범으로 묶기",
-      haystack: hay("새 앨범 만들기", "앨범 생성", "앨범 추가", "album", "create"),
-      run: () => router.push("/library?album=new"),
-    });
+    if (user) {
+      out.push({
+        key: "action-add-tracks",
+        kind: "action",
+        title: "곡 등록",
+        subtitle: "오디오 파일을 보관함에 추가",
+        haystack: hay("곡 등록", "업로드", "추가", "upload", "add"),
+        run: () => router.push("/library?add=1"),
+      });
+      out.push({
+        key: "action-create-album",
+        kind: "action",
+        title: "새 앨범 만들기",
+        subtitle: "보관함의 곡을 골라 앨범으로 묶기",
+        haystack: hay("새 앨범 만들기", "앨범 생성", "앨범 추가", "album", "create"),
+        run: () => router.push("/library?album=new"),
+      });
+    }
 
     for (const t of tracks) {
       out.push({
@@ -125,7 +130,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       });
     }
     return out;
-  }, [tracks, router, playAll, playTrack]);
+  }, [tracks, router, playAll, playTrack, user]);
 
   const q = query.trim().toLowerCase();
   const groups = useMemo(() => {

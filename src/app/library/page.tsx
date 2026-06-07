@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTracks, useAlbums, useTracksLoading } from "@/contexts/TracksContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { usePlayerStore } from "@/stores/usePlayerStore";
+import LoginPrompt from "@/components/app/LoginPrompt";
 import { useDialogStore } from "@/stores/useDialogStore";
 import { useToastStore } from "@/stores/useToastStore";
 import { deleteAlbum, setTrackVisibility } from "@/lib/firestore-tracks";
@@ -54,6 +56,7 @@ const SORT_LABEL: Record<SortKey, string> = {
 };
 
 export default function LibraryPage() {
+  const { user } = useAuth();
   const tracks = useTracks();
   const albums = useAlbums();
   const loading = useTracksLoading();
@@ -173,6 +176,18 @@ export default function LibraryPage() {
         }
       },
     });
+  }
+
+  if (!user) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="보관함" description="내 음악을 올리고 관리하는 공간이에요" />
+        <LoginPrompt
+          title="로그인하면 내 음악을 올릴 수 있어요"
+          description="듣기는 로그인 없이도 돼요. 곡 등록·수정·앨범 관리는 로그인 후 가능해요."
+        />
+      </div>
+    );
   }
 
   return (

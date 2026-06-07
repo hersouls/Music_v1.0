@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, type Variants } from "framer-motion";
 import { useTracks } from "@/contexts/TracksContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { usePlayerStore } from "@/stores/usePlayerStore";
 import { NAV_ITEMS } from "@/lib/nav";
 import { BRAND_TAGLINE } from "@/lib/constants";
@@ -41,6 +42,7 @@ const item: Variants = {
 };
 
 export default function HomePage() {
+  const { user } = useAuth();
   const tracks = useTracks();
   const playCounts = usePlayerStore((s) => s.playCounts);
   const recentPlays = usePlayerStore((s) => s.recentPlays);
@@ -423,7 +425,7 @@ export default function HomePage() {
       {/* 4. 모듈 바로가기 */}
       <motion.div variants={item}>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {NAV_ITEMS.filter((n) => n.href !== "/").map(({ href, label, icon: Icon, desc }) => (
+          {NAV_ITEMS.filter((n) => n.href !== "/" && (user || !n.authRequired)).map(({ href, label, icon: Icon, desc }) => (
             <Link
               key={href}
               href={href}
