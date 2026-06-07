@@ -34,6 +34,8 @@ import {
 } from "@/lib/ai-client";
 import { finalizeTrack, newTrackId, uploadTrackCover } from "@/lib/firestore-tracks";
 import { looksLikeLrc, buildLrc, formatLrcTime } from "@/lib/lrc";
+import { DEFAULT_COVER_STYLE } from "@/lib/cover-styles";
+import CoverStylePicker from "@/components/app/CoverStylePicker";
 import { formatBytes, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import TrackArtwork from "@/components/music/TrackArtwork";
@@ -139,6 +141,7 @@ export default function TrackWizard({
   const [lyricsText, setLyricsText] = useState("");
   const [sync, setSync] = useState<SyncStatus>({ status: "idle" });
   const [art, setArt] = useState<ArtStatus>({ status: "idle" });
+  const [artStyle, setArtStyle] = useState<string>(DEFAULT_COVER_STYLE);
   const [albumChoice, setAlbumChoice] = useState("");
   const [newAlbum, setNewAlbum] = useState("");
   const [visibility, setVisibility] = useState<Visibility>("public");
@@ -184,6 +187,7 @@ export default function TrackWizard({
     setLyricsText("");
     setSync({ status: "idle" });
     setArt({ status: "idle" });
+    setArtStyle(DEFAULT_COVER_STYLE);
     setAlbumChoice("");
     setNewAlbum("");
     setVisibility("public");
@@ -293,34 +297,48 @@ export default function TrackWizard({
     }
   }, [open, step, sync.status, uploadResult, runSync]);
 
-  /* ── ④ Cartoonify 커버 ── */
-  const runArt = useCallback(async () => {
-    if (!title) return;
-    const session = sessionRef.current;
-    setArt((prev) => {
-      if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl);
-      artUrlRef.current = null;
-      return { status: "working" };
-    });
-    try {
-      const blob = await requestCoverArt({ title, lyrics: lyricsText || undefined });
-      if (sessionRef.current !== session) return;
-      const previewUrl = URL.createObjectURL(blob);
-      artUrlRef.current = previewUrl;
-      setArt({ status: "done", blob, previewUrl });
-    } catch (e) {
-      if (sessionRef.current !== session) return;
-      setArt({
-        status: "error",
-        error: e instanceof Error ? e.message : "커버 생성에 실패했습니다",
+  /* ── ④ AI 커버 (스타일 선택) ── */
+  const runArt = useCallback(
+    async (style: string) => {
+      if (!title) return;
+      const session = sessionRef.current;
+      setArt((prev) => {
+        if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+        artUrlRef.current = null;
+        return { status: "working" };
       });
-    }
-  }, [title, lyricsText]);
+      try {
+        const blob = await requestCoverArt({
+          title,
+          lyrics: lyricsText || undefined,
+          style,
+        });
+        if (sessionRef.current !== session) return;
+        const previewUrl = URL.createObjectURL(blob);
+        artUrlRef.current = previewUrl;
+        setArt({ status: "done", blob, previewUrl });
+      } catch (e) {
+        if (sessionRef.current !== session) return;
+        setArt({
+          status: "error",
+          error: e instanceof Error ? e.message : "커버 생성에 실패했습니다",
+        });
+      }
+    },
+    [title, lyricsText]
+  );
 
-  /* 커버 단계 첫 진입 시 자동 생성 */
+  /* 스타일 칩 선택 → 그 스타일로 즉시 재생성 (미리보기, 저장 전) */
+  function selectArtStyle(style: string) {
+    if (art.status === "working") return;
+    setArtStyle(style);
+    void runArt(style);
+  }
+
+  /* 커버 단계 첫 진입 시 현재 스타일로 자동 생성 */
   useEffect(() => {
-    if (open && step === "art" && art.status === "idle") void runArt();
-  }, [open, step, art.status, runArt]);
+    if (open && step === "art" && art.status === "idle") void runArt(artStyle);
+  }, [open, step, art.status, runArt, artStyle]);
 
   /* ── 내비게이션 ── */
   const canNext = useMemo(() => {
@@ -582,7 +600,9 @@ export default function TrackWizard({
                         title={title}
                         trackId={uploadResult?.id ?? "pending"}
                         art={art}
-                        onRegenerate={() => void runArt()}
+                        style={artStyle}
+                        onSelectStyle={selectArtStyle}
+                        onRegenerate={() => void runArt(artStyle)}
                       />
                     )}
                     {step === "album" && (
@@ -1025,23 +1045,28 @@ function StepSync({
   );
 }
 
-/* ══════════ ④ Cartoonify 커버 ══════════ */
+/* ══════════ ④ AI 커버 (스타일 선택) ══════════ */
 function StepArt({
   title,
   trackId,
   art,
+  style,
+  onSelectStyle,
   onRegenerate,
 }: {
   title: string;
   trackId: string;
   art: ArtStatus;
+  style: string;
+  onSelectStyle: (id: string) => void;
   onRegenerate: () => void;
 }) {
+  const working = art.status === "working" || art.status === "idle";
   return (
     <div className="flex flex-col items-center gap-4">
       {/* 프리뷰 — 생성 중 셔머 / 완성 이미지 / 폴백 SVG */}
-      <div className="relative h-56 w-56 overflow-hidden rounded-3xl shadow-lg ring-1 ring-black/5 sm:h-64 sm:w-64">
-        {art.status === "working" || art.status === "idle" ? (
+      <div className="relative h-52 w-52 overflow-hidden rounded-3xl shadow-lg ring-1 ring-black/5 sm:h-56 sm:w-56">
+        {working ? (
           <div className="flex h-full w-full animate-pulse flex-col items-center justify-center gap-3 bg-gradient-to-br from-bora-100 via-indigo-100 to-bora-50">
             <Palette className="h-10 w-10 text-bora-400" />
             <Loader2 className="h-5 w-5 animate-spin text-bora-500" />
@@ -1058,52 +1083,44 @@ function StepArt({
         )}
       </div>
 
-      {art.status === "working" || art.status === "idle" ? (
+      {/* 스타일 선택 — 칩 탭하면 그 스타일로 즉시 다시 그림 */}
+      <div className="w-full">
+        <p className="mb-2 text-center text-xs font-medium text-caption">
+          스타일을 골라 보세요 {working && "· 그리는 중…"}
+        </p>
+        <CoverStylePicker value={style} onSelect={onSelectStyle} disabled={working} />
+      </div>
+
+      {working ? (
         <p className="text-center text-xs text-caption">
-          「{title}」에 어울리는 <strong className="font-semibold text-body">Cartoonify 커버</strong>를
+          「{title}」에 어울리는 <strong className="font-semibold text-body">AI 커버</strong>를
           그리는 중… 보통 10~30초 걸려요
         </p>
       ) : art.status === "done" ? (
-        <>
+        <div className="flex flex-col items-center gap-2">
           <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-700">
-            <Check className="h-3.5 w-3.5" strokeWidth={3} /> 커버 완성 — 마음에 들지 않으면 다시 그릴 수 있어요
+            <Check className="h-3.5 w-3.5" strokeWidth={3} /> 커버 완성 — 스타일을 바꾸거나 다시 그려보세요
           </p>
           <button
             onClick={onRegenerate}
-            className="flex items-center gap-1.5 rounded-xl border border-strong bg-surface-primary px-4 py-2.5 text-sm font-medium text-body transition-colors hover:bg-surface-secondary"
+            className="flex items-center gap-1.5 rounded-xl border border-strong bg-surface-primary px-4 py-2 text-xs font-medium text-body transition-colors hover:bg-surface-secondary"
           >
-            <RefreshCw className="h-4 w-4" /> 다시 생성
+            <RefreshCw className="h-3.5 w-3.5" /> 같은 스타일로 다시
           </button>
-        </>
+        </div>
       ) : art.status === "error" ? (
-        <div className="w-full space-y-3">
-          <div className="rounded-2xl bg-red-50 px-4 py-3 text-center">
-            <p className="text-sm font-semibold text-red-600">커버 생성에 실패했어요</p>
-            <p className="mt-0.5 text-xs text-red-500">{art.error}</p>
-          </div>
-          <div className="flex justify-center">
-            <button
-              onClick={onRegenerate}
-              className="flex items-center gap-1.5 rounded-xl bg-bora-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-bora-700"
-            >
-              <RefreshCw className="h-4 w-4" /> 다시 시도
-            </button>
-          </div>
-          <p className="text-center text-xs text-caption">
+        <div className="w-full space-y-2 text-center">
+          <p className="text-sm font-semibold text-red-600">커버 생성에 실패했어요</p>
+          <p className="text-xs text-red-500">{art.error}</p>
+          <p className="text-xs text-caption">
             건너뛰면 곡마다 고유한 기본 아트(그라데이션)가 쓰여요.
           </p>
         </div>
       ) : (
         /* skipped */
-        <>
-          <p className="text-xs text-caption">기본 아트를 사용해요 — 곡 id 기반의 고유 그라데이션</p>
-          <button
-            onClick={onRegenerate}
-            className="flex items-center gap-1.5 rounded-xl border border-strong bg-surface-primary px-4 py-2.5 text-sm font-medium text-body transition-colors hover:bg-surface-secondary"
-          >
-            <Sparkles className="h-4 w-4" /> 그래도 AI 커버 만들어보기
-          </button>
-        </>
+        <p className="text-center text-xs text-caption">
+          기본 아트를 사용해요 — 위에서 스타일을 누르면 AI 커버를 만들 수 있어요.
+        </p>
       )}
     </div>
   );

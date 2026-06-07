@@ -3,6 +3,7 @@ import {
   checkRateLimit,
   rateLimitResponse,
 } from "@/lib/server-auth";
+import { coverStylePrompt, COVER_BASE_PROMPT } from "@/lib/cover-styles";
 
 /* ───────────────────────────────────────────
    AI 커버 아트 생성 — POST { title, album?, lyrics? }
@@ -19,20 +20,23 @@ const OPENAI_URL = "https://api.openai.com/v1/images/generations";
 const MAX_TITLE = 120;
 const MAX_LYRICS_HINT = 280;
 
-function buildPrompt(title: string, album: string, lyricsHint: string): string {
+function buildPrompt(
+  title: string,
+  album: string,
+  lyricsHint: string,
+  style: string
+): string {
   const subject = [
-    `Square album cover illustration for the song "${title}"`,
+    `Album cover artwork for the song "${title}"`,
     album ? `from the album "${album}"` : "",
   ]
     .filter(Boolean)
     .join(" ");
   return [
     `${subject}.`,
-    "Style: cartoonify — bold clean outlines, flat vibrant colors,",
-    "playful hand-drawn cartoon look, soft gradients, high contrast,",
-    "centered composition, dreamy wave and moonlight motifs welcome.",
+    coverStylePrompt(style),
     lyricsHint ? `Mood and imagery inspired by these lyrics: ${lyricsHint}` : "",
-    "Strictly no text, no letters, no typography, no watermark, no signature.",
+    COVER_BASE_PROMPT,
   ]
     .filter(Boolean)
     .join("\n");
@@ -101,12 +105,13 @@ export async function POST(req: Request) {
   const rl = checkRateLimit(`art:${uid}`, 12, 10 * 60 * 1000, Date.now());
   if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
-  let body: { title?: unknown; album?: unknown; lyrics?: unknown };
+  let body: { title?: unknown; album?: unknown; lyrics?: unknown; style?: unknown };
   try {
     body = await req.json();
   } catch {
     return Response.json({ error: "잘못된 요청입니다" }, { status: 400 });
   }
+  const style = typeof body.style === "string" ? body.style : "";
 
   const title =
     typeof body.title === "string" ? body.title.trim().slice(0, MAX_TITLE) : "";
@@ -125,7 +130,7 @@ export async function POST(req: Request) {
           .slice(0, MAX_LYRICS_HINT)
       : "";
 
-  const prompt = buildPrompt(title, album, lyricsHint);
+  const prompt = buildPrompt(title, album, lyricsHint, style);
 
   try {
     // gpt-image-1 → (조직 미검증 등으로 거부 시) dall-e-3 폴백

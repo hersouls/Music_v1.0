@@ -13,6 +13,8 @@ import {
 } from "@/lib/firestore-tracks";
 import { requestCoverArt } from "@/lib/ai-client";
 import { canDownload, downloadTrackCover } from "@/lib/download";
+import { DEFAULT_COVER_STYLE } from "@/lib/cover-styles";
+import CoverStylePicker from "@/components/app/CoverStylePicker";
 import { cn } from "@/lib/utils";
 import Modal from "@/components/ui/Modal";
 import { Field, fieldInputClass } from "@/components/ui/Form";
@@ -58,6 +60,7 @@ export default function TrackEditModal({
   const [visibility, setVisibility] = useState<Visibility>("public");
   const [busy, setBusy] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
+  const [coverStyle, setCoverStyle] = useState<string>(DEFAULT_COVER_STYLE);
   /** 커버 즉시 반영 미리보기 (구독 갱신 전 잠깐 사용) */
   const [coverOverride, setCoverOverride] = useState<string | null | undefined>(undefined);
 
@@ -69,6 +72,7 @@ export default function TrackEditModal({
     setNewAlbum("");
     setVisibility(track.visibility);
     setCoverOverride(undefined);
+    setCoverStyle(DEFAULT_COVER_STYLE);
   }, [track]);
 
   if (!track) return null;
@@ -125,6 +129,7 @@ export default function TrackEditModal({
         title: title.trim() || t.title,
         album: album || undefined,
         lyrics: t.lyrics || undefined,
+        style: coverStyle,
       });
       const url = await saveTrackCover(uid, t.id, blob);
       setCoverOverride(url);
@@ -246,6 +251,17 @@ export default function TrackEditModal({
               </button>
             )}
           </div>
+        </div>
+
+        {/* AI 커버 스타일 — 선택 후 "AI 커버 다시"로 적용 */}
+        <div>
+          <p className="mb-2 text-xs font-medium text-heading">AI 커버 스타일</p>
+          <CoverStylePicker
+            value={coverStyle}
+            onSelect={setCoverStyle}
+            disabled={coverBusy}
+            className="justify-start"
+          />
         </div>
 
         <Field label="제목" required>

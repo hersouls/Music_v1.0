@@ -38,11 +38,13 @@ export async function requestLyricsAlign(params: {
   return data.lines;
 }
 
-/** AI 커버 생성 (Cartoonify) — base64 → Blob */
+/** AI 커버 생성 — 스타일 선택(cartoon·watercolor·neon…). base64 → Blob */
 export async function requestCoverArt(params: {
   title: string;
   album?: string;
   lyrics?: string;
+  /** cover-styles.ts 의 스타일 id (없으면 서버 기본 = cartoon) */
+  style?: string;
 }): Promise<Blob> {
   const res = await fetch("/api/artwork/generate", {
     method: "POST",
