@@ -10,12 +10,16 @@ import {
   Transition,
   TransitionChild,
 } from "@headlessui/react";
-import { NAV_ITEMS, type NavItem } from "@/lib/nav";
+import { NAV_ITEMS, SHARED_NAV_ITEM, type NavItem } from "@/lib/nav";
 import { BRAND_NAME, BRAND_NAME_KO } from "@/lib/constants";
 import { formatDurationKo } from "@/lib/format";
 import { usePlayerStore } from "@/stores/usePlayerStore";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { TracksProvider, useTracks } from "@/contexts/TracksContext";
+import {
+  TracksProvider,
+  useTracks,
+  useSharedLibraries,
+} from "@/contexts/TracksContext";
 import { playerEngine } from "@/lib/player-engine";
 import LoginScreen from "@/components/app/LoginScreen";
 import CommandPalette from "@/components/app/CommandPalette";
@@ -52,9 +56,15 @@ function SidebarContent({
   onOpenSearch?: () => void;
 }) {
   const tracks = useTracks();
+  const sharedLibs = useSharedLibraries();
   const { user, signOut } = useAuth();
   const playAll = usePlayerStore((s) => s.playAll);
   const totalSec = tracks.reduce((s, t) => s + t.duration, 0);
+  // 공유받은 음악이 있으면 "공유 보관함"을 설정 앞에 삽입
+  const navItems =
+    sharedLibs.length > 0
+      ? [...items.slice(0, -1), SHARED_NAV_ITEM, items[items.length - 1]]
+      : items;
 
   return (
     <>
@@ -88,7 +98,7 @@ function SidebarContent({
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-1">
-          {items.map(({ href, label, icon: Icon }) => {
+          {navItems.map(({ href, label, icon: Icon }) => {
             const isActive =
               href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
@@ -349,8 +359,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     prevUid.current = uid;
   }, [uid]);
 
-  // 공개 곡 공유 페이지(/track/[id])는 로그인 없이 단독 렌더 — 자체 플레이어 보유
-  if (pathname?.startsWith("/track/")) return <>{children}</>;
+  // 공개 곡 공유(/track/[id])·초대 수락(/invite/[code])은 로그인 없이 단독 렌더
+  if (pathname?.startsWith("/track/") || pathname?.startsWith("/invite/"))
+    return <>{children}</>;
 
   if (!firebaseReady) return <LoginScreen />; // 설정 안내 표시
   if (loading) return <SplashScreen />;

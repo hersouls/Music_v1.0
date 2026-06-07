@@ -4,6 +4,8 @@ import {
   Compass,
   Heart,
   BarChart3,
+  Users,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 
@@ -20,4 +22,13 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/browse", label: "둘러보기", icon: Compass, desc: "모두의 공개 곡" },
   { href: "/favorites", label: "즐겨찾기", icon: Heart, desc: "좋아요 표시한 곡" },
   { href: "/stats", label: "청취 통계", icon: BarChart3, desc: "재생 기록 · 분석" },
+  { href: "/settings", label: "설정", icon: Settings, desc: "초대 · 공유 관리" },
 ];
+
+/** 공유받은 음악이 있을 때만 노출하는 동적 내비 항목 */
+export const SHARED_NAV_ITEM: NavItem = {
+  href: "/shared",
+  label: "공유 보관함",
+  icon: Users,
+  desc: "초대로 공유받은 음악",
+};

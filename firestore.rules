@@ -3,6 +3,7 @@ rules_version = '2';
 // ═══════════════════════════════════════════
 // Moonwave Music — Firestore 보안 규칙
 //  - 공개 곡(public)은 누구나 열람, 비공개·쓰기는 소유자만
+//  - 초대 코드로 권한(grant) 받은 사용자는 그 소유자의 모든 곡 열람
 //  - per-user 데이터(즐겨찾기·통계)는 본인만
 // ═══════════════════════════════════════════
 service cloud.firestore {
@@ -15,10 +16,27 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    // 초대 코드가 유효(존재·해당 소유자·활성)한지
+    function activeInvite(code, ownerUid) {
+      return exists(/databases/$(database)/documents/invites/$(code))
+        && get(/databases/$(database)/documents/invites/$(code)).data.ownerUid == ownerUid
+        && get(/databases/$(database)/documents/invites/$(code)).data.active == true;
+    }
+
+    // 현재 사용자가 ownerUid 의 라이브러리에 활성 권한이 있는지
+    // (grant 문서 id = "{readerUid}_{ownerUid}", 저장된 code 가 여전히 활성이어야 함 → 해제 즉시 반영)
+    function hasActiveGrant(ownerUid) {
+      let gid = request.auth.uid + '_' + ownerUid;
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/grants/$(gid))
+        && activeInvite(get(/databases/$(database)/documents/grants/$(gid)).data.code, ownerUid);
+    }
+
     // 곡 메타데이터
     match /tracks/{trackId} {
       allow read: if resource.data.visibility == 'public'
-                  || isOwner(resource.data.ownerUid);
+                  || isOwner(resource.data.ownerUid)
+                  || hasActiveGrant(resource.data.ownerUid);
       // 생성 시 ownerUid 는 본인 + visibility 는 허용값 + Storage 경로는 본인 소유 경로로 바인딩
       allow create: if isSignedIn()
                     && request.resource.data.ownerUid == request.auth.uid
@@ -26,6 +44,36 @@ service cloud.firestore {
                     && request.resource.data.storagePath is string
                     && request.resource.data.storagePath.matches('tracks/' + request.auth.uid + '/.*');
       allow update, delete: if isOwner(resource.data.ownerUid);
+    }
+
+    // 초대 코드 — 문서 id = 코드.
+    //  get: 코드(문서 id)를 정확히 아는 사람만 단건 조회(QR/링크/수락용).
+    //  list: 소유자만 자기 초대 목록 — 임의 사용자가 전체 코드를 덤프하지 못하게 차단.
+    match /invites/{code} {
+      allow get: if true;
+      allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn()
+                    && request.resource.data.ownerUid == request.auth.uid
+                    && request.resource.data.active is bool;
+      allow update, delete: if isSignedIn()
+                    && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // 권한 부여 — 문서 id = "{readerUid}_{ownerUid}". 본인(reader)만,
+    //  생성/갱신 시 유효한 활성 초대 코드를 제시해야 함(위조 방지).
+    function validGrantWrite(grantId) {
+      return isSignedIn()
+        && request.resource.data.readerUid == request.auth.uid
+        && grantId == request.auth.uid + '_' + request.resource.data.ownerUid
+        && request.resource.data.ownerUid != request.auth.uid
+        && activeInvite(request.resource.data.code, request.resource.data.ownerUid);
+    }
+    match /grants/{grantId} {
+      allow read: if isSignedIn() && resource.data.readerUid == request.auth.uid;
+      // create·update 동일 조건 — 재수락(중지→재활성, 코드 교체, 재방문) 시
+      //  기존 문서가 있어 update 로 평가돼도 통과하도록
+      allow create, update: if validGrantWrite(grantId);
+      allow delete: if isSignedIn() && resource.data.readerUid == request.auth.uid;
     }
 
     // per-user 영역 (프로필·즐겨찾기·재생이력·통계)
