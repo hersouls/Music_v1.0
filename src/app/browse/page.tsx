@@ -4,7 +4,10 @@ import { useMemo, useState } from "react";
 import { usePublicTracks, useTracksLoading } from "@/contexts/TracksContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayerStore } from "@/stores/usePlayerStore";
+import { useToastStore } from "@/stores/useToastStore";
+import { canDownload, downloadTrackFile } from "@/lib/download";
 import { formatDurationKo } from "@/lib/format";
+import type { Track } from "@/types/music";
 import { cn } from "@/lib/utils";
 import PageHeader from "@/components/ui/PageHeader";
 import StatCard from "@/components/ui/StatCard";
@@ -30,9 +33,28 @@ import {
 export default function BrowsePage() {
   const publicTracks = usePublicTracks();
   const loading = useTracksLoading();
-  const { uid } = useAuth();
+  const { uid, user } = useAuth();
   const playAll = usePlayerStore((s) => s.playAll);
+  const addToast = useToastStore((s) => s.addToast);
+  const allowDownload = canDownload(user?.email);
   const [query, setQuery] = useState("");
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  async function handleDownload(track: Track) {
+    if (downloadingId) return;
+    setDownloadingId(track.id);
+    addToast({ type: "info", message: `「${track.title}」 다운로드 준비 중…` });
+    try {
+      await downloadTrackFile(track);
+    } catch (e) {
+      addToast({
+        type: "error",
+        message: e instanceof Error ? e.message : "다운로드에 실패했어요",
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -193,6 +215,7 @@ export default function BrowsePage() {
                     index={i + 1}
                     contextIds={ids}
                     showPlayCount
+                    onDownload={allowDownload ? handleDownload : undefined}
                   />
                 ))}
               </ul>

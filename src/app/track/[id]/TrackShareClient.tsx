@@ -12,6 +12,8 @@ import { useParams } from "next/navigation";
 import { fetchTrack } from "@/lib/firestore-tracks";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { trackShareUrl, copyToClipboard } from "@/lib/track-url";
+import { canDownload, downloadTrackFile } from "@/lib/download";
+import { useAuth } from "@/contexts/AuthContext";
 import { parseLyrics, activeLineIndex, type ParsedLyrics } from "@/lib/lrc";
 import { formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -28,6 +30,7 @@ import {
   Lock,
   MicVocal,
   ArrowRight,
+  Download,
 } from "lucide-react";
 
 /* ───────────────────────────────────────────
@@ -128,6 +131,9 @@ function SharePlayer({ track }: { track: Track }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(track.duration || 0);
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const { user } = useAuth();
+  const allowDownload = canDownload(user?.email) && track.visibility === "public";
 
   const parsed: ParsedLyrics | null = useMemo(
     () => (track.lyrics ? parseLyrics(track.lyrics) : null),
@@ -220,6 +226,16 @@ function SharePlayer({ track }: { track: Track }) {
     }
   }
 
+  async function download() {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await downloadTrackFile(track);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
@@ -282,6 +298,21 @@ function SharePlayer({ track }: { track: Track }) {
           {copied ? <Check className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
           {copied ? "복사됨" : "링크 공유"}
         </button>
+        {allowDownload && (
+          <button
+            onClick={() => void download()}
+            disabled={downloading}
+            aria-label="음원 다운로드"
+            className="flex items-center gap-2 rounded-full bg-white/15 px-4 py-3 text-sm font-semibold text-white ring-1 ring-white/25 backdrop-blur-sm transition-colors hover:bg-white/25 disabled:opacity-50"
+          >
+            {downloading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            {downloading ? "받는 중…" : "다운로드"}
+          </button>
+        )}
       </div>
 
       {/* 가사 */}

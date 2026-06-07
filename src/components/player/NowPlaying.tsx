@@ -18,12 +18,17 @@ import {
   ListMusic,
   MicVocal,
   Share2,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime, formatSampleRate } from "@/lib/format";
 import { trackShareUrl, copyToClipboard } from "@/lib/track-url";
+import { canDownload, downloadTrackFile } from "@/lib/download";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToastStore } from "@/stores/useToastStore";
 import { usePlayerStore } from "@/stores/usePlayerStore";
+import type { Track } from "@/types/music";
 import TrackArtwork from "@/components/music/TrackArtwork";
 import RangeSlider from "@/components/player/RangeSlider";
 import Visualizer from "@/components/player/Visualizer";
@@ -62,6 +67,9 @@ export default function NowPlaying() {
   const playFromQueue = usePlayerStore((s) => s.playFromQueue);
   const setNowPlayingOpen = usePlayerStore((s) => s.setNowPlayingOpen);
   const addToast = useToastStore((s) => s.addToast);
+  const { user } = useAuth();
+  const [downloading, setDownloading] = useState(false);
+  const allowDownload = canDownload(user?.email);
 
   async function shareTrack(t: { id: string; title: string }) {
     const url = trackShareUrl(t.id);
@@ -77,6 +85,22 @@ export default function NowPlaying() {
       addToast({ type: "success", message: "공유 링크를 복사했어요" });
     } else {
       addToast({ type: "error", message: "링크 복사에 실패했어요" });
+    }
+  }
+
+  async function download(t: Track) {
+    if (downloading) return;
+    setDownloading(true);
+    addToast({ type: "info", message: "다운로드를 준비하고 있어요…" });
+    try {
+      await downloadTrackFile(t);
+    } catch (e) {
+      addToast({
+        type: "error",
+        message: e instanceof Error ? e.message : "다운로드에 실패했어요",
+      });
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -164,6 +188,20 @@ export default function NowPlaying() {
                     className="flex h-10 w-10 items-center justify-center rounded-xl text-white/80 transition-colors hover:bg-white/10 hover:text-white"
                   >
                     <Share2 className="h-5 w-5" />
+                  </button>
+                )}
+                {allowDownload && track.visibility === "public" && (
+                  <button
+                    onClick={() => void download(track)}
+                    disabled={downloading}
+                    aria-label="음원 다운로드"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl text-white/80 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+                  >
+                    {downloading ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Download className="h-5 w-5" />
+                    )}
                   </button>
                 )}
                 <button

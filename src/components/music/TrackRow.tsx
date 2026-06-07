@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, Pause, Heart, FolderInput, Globe, Lock } from "lucide-react";
+import { Play, Pause, Heart, FolderInput, Globe, Lock, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime, formatSampleRate } from "@/lib/format";
 import { usePlayerStore } from "@/stores/usePlayerStore";
@@ -21,6 +21,7 @@ export default function TrackRow({
   showAlbum = true,
   onMove,
   onToggleVisibility,
+  onDownload,
 }: {
   track: Track;
   /** 표시용 순번 (1부터). 생략 시 숨김 */
@@ -34,6 +35,8 @@ export default function TrackRow({
   onMove?: (track: Track) => void;
   /** 지정 시 공개/비공개 토글 버튼 노출 (보관함 관리) */
   onToggleVisibility?: (track: Track) => void;
+  /** 지정 시 다운로드 버튼 노출 (허용 계정 — 공개곡) */
+  onDownload?: (track: Track) => void;
 }) {
   const currentId = usePlayerStore((s) => s.currentId);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -151,6 +154,19 @@ export default function TrackRow({
           )}
         >
           {isPrivate ? <Lock className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+        </button>
+      )}
+
+      {onDownload && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDownload(track);
+          }}
+          aria-label={`${track.title} 다운로드`}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-caption opacity-0 transition-colors hover:bg-surface-tertiary hover:text-bora-600 focus-visible:opacity-100 group-hover:opacity-100"
+        >
+          <Download className="h-4 w-4" />
         </button>
       )}
 
